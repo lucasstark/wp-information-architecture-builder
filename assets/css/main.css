@@ -1,0 +1,49 @@
+.wpiab-outer-wrap {
+	position: relative;
+	width:100%;
+}
+
+.wpiab-tree-wrap-outer {
+
+	position:relative;
+	overflow: auto;
+}
+
+
+
+
+
+.font-blue {
+	color:#65A6FF!important;
+}
+
+.font-green {
+	color: #9CD159!important;
+}
+
+.glyph-icon {
+	font-size: 20px!important;
+}
+
+.glyph-icon:before {
+	background: 0 0;
+	width: auto;
+	height: auto;
+	font-style: normal;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-align: center;
+	display: inline-block;
+	text-decoration: none;
+}
+
+.icon-file:before {
+	content: '\f0d6';
+}
+
+.jstree-open .jstree-icon.fa-folder:before {
+	content:'\f07c' !important;
+}
+
+
+.jstree-default-large .jstree-icon{width:32px;height:32px;line-height:32px}

@@ -1,0 +1,21 @@
+{
+  "name": "wp-information-architecture-builder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "GPL-2.0",
+  "devDependencies": {
+    "autoprefixer": "latest",
+    "cssnano": "^3.7.3",
+    "grunt": "latest",
+    "grunt-browser-sync": "latest",
+    "grunt-contrib-watch": "latest",
+    "load-grunt-config": "latest",
+    "load-grunt-tasks": "latest",
+    "time-grunt": "latest"
+  }
+}
