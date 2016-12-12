@@ -2536,6 +2536,7 @@
 		 * @trigger open_node.jstree, after_open.jstree, before_open.jstree
 		 */
 		open_node : function (obj, callback, animation) {
+
 			var t1, t2, d, t;
 			if($.isArray(obj)) {
 				obj = obj.slice();
