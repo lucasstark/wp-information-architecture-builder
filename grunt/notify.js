@@ -28,7 +28,7 @@ module.exports = {
 	},
 	build: {
 		options: {
-			message: 'Theme has been built.'
+			message: 'Plugin has been built.'
 		}
 	}
 };

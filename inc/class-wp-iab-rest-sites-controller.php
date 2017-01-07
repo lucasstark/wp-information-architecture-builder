@@ -83,7 +83,6 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	}
 
 
-
 	/**
 	 * Checks if a given request has access to read posts.
 	 *
@@ -179,10 +178,30 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	 */
 	public function create_item( $request ) {
 
-		$prepared_data   = $this->prepare_item_for_database( $request );
+		$prepared_data = $this->prepare_item_for_database( $request );
 
 		remove_filter( "default_option_WPLANG", 'filter_default_option', 10, 3 );
 		$current_site_id = wpmu_create_blog( $prepared_data->domain, $prepared_data->path, $prepared_data->title, get_current_user_id(), array( 'public' => 1 ), 1 );
+
+		if ( $current_site_id && ! is_wp_error( $current_site_id ) ) {
+			switch_to_blog( $current_site_id );
+			if ( defined( 'WP_DEFAULT_THEME' ) ) {
+				$theme = WP_DEFAULT_THEME;
+				switch_theme( $theme );
+				//this is weird, but it would appear there might be a bug with switch theme in that it doesn't switch the current_theme. But if we kill it then the code runs to reset it.
+				update_option( 'current_theme', '' );
+			}
+
+			//Delete the sample page that get's created
+			$this->delete_page( 'sample-page' );
+
+			wp_delete_post( 1 );
+			wp_delete_comment( 1 );
+
+			$home_page_id = $this->create_page( sanitize_title( $prepared_data->title ), '_migration_homepage_id', $prepared_data->title );
+			update_option( 'show_on_front', 'page' );
+			update_option( 'page_on_front', $home_page_id );
+		}
 
 		if ( is_wp_error( $current_site_id ) ) {
 
@@ -232,28 +251,28 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	public function update_item( $request ) {
 		global $wpdb;
 
-		$prepared_data   = $this->prepare_item_for_database( $request );
+		$prepared_data = $this->prepare_item_for_database( $request );
 
 		if ( empty( $prepared_data->id ) ) {
 			return new WP_Error( 'rest_invalid_domain', __( 'Not Found.' ), array( 'status' => 404 ) );
 		}
 
-		$details = get_site( $prepared_data->id );
+		$details       = get_site( $prepared_data->id );
 		$parsed_scheme = parse_url( $details->siteurl, PHP_URL_SCHEME );
-		$is_main_site = is_main_site( $prepared_data->id );
+		$is_main_site  = is_main_site( $prepared_data->id );
 
 		switch_to_blog( $prepared_data->id );
 
 		// Rewrite rules can't be flushed during switch to blog.
 		delete_option( 'rewrite_rules' );
 
-		$blog_data = array();
+		$blog_data           = array();
 		$blog_data['scheme'] = $parsed_scheme;
 
 		if ( $is_main_site ) {
 			// On the network's main site, don't allow the domain or path to change.
 			$blog_data['domain'] = $details->domain;
-			$blog_data['path'] = $details->path;
+			$blog_data['path']   = $details->path;
 		} else {
 			// For any other site, the scheme, domain, and path can all be changed. We first
 			// need to ensure a scheme has been provided, otherwise fallback to the existing.
@@ -273,19 +292,19 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 			$blog_data['scheme'] = $update_parsed_url['scheme'];
 			$blog_data['domain'] = $update_parsed_url['host'];
-			$blog_data['path'] = $update_parsed_url['path'];
+			$blog_data['path']   = $update_parsed_url['path'];
 		}
 
 		$existing_details = get_site( $prepared_data->id );
 
 		update_blog_details( $prepared_data->id, $blog_data );
-		update_option('blogname', $prepared_data->title);
+		update_option( 'blogname', $prepared_data->title );
 
 
 		// Maybe update home and siteurl options.
 		$new_details = get_site( $prepared_data->id );
 
-		$old_home_url = trailingslashit( esc_url( get_option( 'home' ) ) );
+		$old_home_url    = trailingslashit( esc_url( get_option( 'home' ) ) );
 		$old_home_parsed = parse_url( $old_home_url );
 
 		if ( $old_home_parsed['host'] === $existing_details->domain && $old_home_parsed['path'] === $existing_details->path ) {
@@ -293,14 +312,13 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			update_option( 'home', $new_home_url );
 		}
 
-		$old_site_url = trailingslashit( esc_url( get_option( 'siteurl' ) ) );
+		$old_site_url    = trailingslashit( esc_url( get_option( 'siteurl' ) ) );
 		$old_site_parsed = parse_url( $old_site_url );
 
 		if ( $old_site_parsed['host'] === $existing_details->domain && $old_site_parsed['path'] === $existing_details->path ) {
 			$new_site_url = untrailingslashit( esc_url_raw( $blog_data['scheme'] . '://' . $new_details->domain . $new_details->path ) );
 			update_option( 'siteurl', $new_site_url );
 		}
-
 
 
 		restore_current_blog();
@@ -330,10 +348,11 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 
 	public function delete_item( $request ) {
-		$id    = (int) $request['id'];
+		require_once( ABSPATH . 'wp-admin/includes/admin.php' );
+		$id = (int) $request['id'];
 
-		$site = get_site($id);
-		if ( empty( $id ) || empty( $site->ID) ) {
+		$site = get_site( $id );
+		if ( empty( $id ) || empty( $site ) ) {
 			return new WP_Error( 'rest_post_invalid_id', __( 'Invalid post ID.' ), array( 'status' => 404 ) );
 		}
 
@@ -341,7 +360,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 		$previous = $this->prepare_item_for_response( $site, $request );
 		$response = new WP_REST_Response();
-		$response->set_data( array( 'deleted' => true, 'previous' => $previous->get_data() ) );
+		$response->set_data( array( 'deleted' => true, 'previous' => $previous ) );
 
 		if ( $id != '0' && $id != get_network()->site_id && current_user_can( 'delete_site', $id ) ) {
 			wpmu_delete_blog( $id, true );
@@ -359,9 +378,9 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		 *
 		 * @since 4.7.0
 		 *
-		 * @param object           $post     The deleted or trashed post.
+		 * @param object $post The deleted or trashed post.
 		 * @param WP_REST_Response $response The response data.
-		 * @param WP_REST_Request  $request  The request sent to the API.
+		 * @param WP_REST_Request $request The request sent to the API.
 		 */
 		do_action( "rest_delete_site", $site, $response, $request );
 
@@ -380,6 +399,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 		$data   = array();
 		$schema = $this->get_item_schema();
+		$site   = $this->add_site_migration_details( $site );
 
 		foreach ( $schema['properties'] as $key => $settings ) {
 			$mapped_key = $this->get_item_mapping( $key );
@@ -394,6 +414,8 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			$value = ( ! $value && isset( $schema['properties'][ $key ]['default'] ) ) ? $schema['properties'][ $key ]['default'] : $value;
 			if ( isset( $schema['properties'][ $mapped_key ]['type'] ) ) {
 				settype( $value, $schema['properties'][ $mapped_key ]['type'] );
+			} elseif ( isset( $schema['properties'][ $key ]['type'] ) ) {
+				settype( $value, $schema['properties'][ $key ]['type'] );
 			}
 
 			switch ( $key ) {
@@ -462,19 +484,19 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			'title'      => 'site',
 			'type'       => 'object',
 			'properties' => array(
-				'id'            => array(
+				'id'                           => array(
 					'description' => __( 'Unique identifier for the object.' ),
 					'type'        => 'integer',
 					'context'     => array( 'view', 'edit', 'embed' ),
 					'readonly'    => true,
 				),
-				'site_id'       => array(
+				'site_id'                      => array(
 					'description' => __( 'ID for the sites network' ),
 					'type'        => 'integer',
 					'context'     => array( 'view', 'edit', 'embed' ),
 					'readonly'    => true,
 				),
-				'title'         => array(
+				'title'                        => array(
 					'description' => __( 'Site Title' ),
 					'type'        => 'string',
 					'context'     => array( 'view', 'edit' ),
@@ -482,7 +504,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 						'sanitize_callback' => 'sanitize_text_field',
 					),
 				),
-				'tagline'       => array(
+				'tagline'                      => array(
 					'description' => __( 'Tagline' ),
 					'type'        => 'string',
 					'context'     => array( 'view', 'edit' ),
@@ -490,7 +512,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 						'sanitize_callback' => 'sanitize_text_field',
 					),
 				),
-				'slug'          => array(
+				'slug'                         => array(
 					'description' => __( 'An alphanumeric identifier for the site' ),
 					'type'        => 'string',
 					'context'     => array( 'view', 'edit', 'embed' ),
@@ -498,27 +520,57 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 						'sanitize_callback' => array( $this, 'sanitize_slug' ),
 					),
 				),
-				'wordpress_url' => array(
+				'wordpress_url'                => array(
 					'description' => __( 'WordPress Address (URL)' ),
 					'type'        => 'string',
 					'format'      => 'uri',
 					'context'     => array( 'view', 'edit', 'embed' ),
 					'readonly'    => true,
 				),
-				'url'           => array(
+				'url'                          => array(
 					'description' => __( 'Site Address (URL)' ),
 					'type'        => 'string',
 					'format'      => 'uri',
 					'context'     => array( 'view', 'edit', 'embed' ),
 					'readonly'    => true,
 				),
-				'domain'        => array(
+				'domain'                       => array(
 					'description' => __( 'Site Domain' ),
 					'type'        => 'string',
 					'context'     => array( 'view', 'edit' ),
 					'arg_options' => array(
 						'sanitize_callback' => 'sanitize_text_field',
 					),
+				),
+				'page_count'                   => array(
+					'description' => __( 'Total Number of Pages' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit', 'embed' ),
+					'readonly'    => true,
+				),
+				'migration_status_new'         => array(
+					'description' => __( 'Number of items that are not started' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit', 'embed' ),
+					'readonly'    => true,
+				),
+				'migration_status_in_progress' => array(
+					'description' => __( 'Number of items in progress' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit', 'embed' ),
+					'readonly'    => true,
+				),
+				'migration_status_in_review'   => array(
+					'description' => __( 'Number of items in review' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit', 'embed' ),
+					'readonly'    => true,
+				),
+				'migration_status_complete'    => array(
+					'description' => __( 'Number of items approved and complete' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit', 'embed' ),
+					'readonly'    => true,
 				),
 			),
 		);
@@ -571,6 +623,73 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 	public function get_site_details( $details ) {
 		return $details;
+	}
+
+
+	protected function create_page( $slug, $option, $page_title = '', $page_content = '', $post_parent = 0 ) {
+		global $wpdb;
+
+		$option_value = get_option( $option );
+		if ( $option_value > 0 && get_post( $option_value ) ) {
+			return (int) $option_value;
+		}
+
+		$page_found = $wpdb->get_var( "SELECT ID FROM " . $wpdb->posts . " WHERE post_name = '$slug' LIMIT 1;" );
+		if ( $page_found ) :
+			if ( ! $option_value ) {
+				update_option( $option, $page_found );
+			}
+
+			return;
+		endif;
+
+		$page_data = array(
+			'post_status'    => 'publish',
+			'post_type'      => 'page',
+			'post_author'    => 1,
+			'post_name'      => $slug,
+			'post_title'     => $page_title,
+			'post_content'   => $page_content,
+			'post_parent'    => $post_parent,
+			'comment_status' => 'closed'
+		);
+		$page_id   = wp_insert_post( $page_data );
+
+		update_option( $option, $page_id );
+
+		return (int) $page_id;
+	}
+
+	protected function delete_page( $slug ) {
+		global $wpdb;
+		$page_found = $wpdb->get_var( "SELECT ID FROM " . $wpdb->posts . " WHERE post_name = '$slug' LIMIT 1;" );
+		if ( $page_found ) {
+			wp_delete_post( $page_found, true );
+		}
+	}
+
+
+	protected function add_site_migration_details( $site ) {
+		global $wpdb;
+		switch_to_blog($site->id);
+
+		$total_pages = $wpdb->get_var( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_type = 'page' AND post_status != 'trash'" );
+		$stats       = $wpdb->get_results( "SELECT meta_value, COUNT(ID) as value FROM $wpdb->posts p INNER JOIN $wpdb->postmeta pm on p.ID = pm.post_id WHERE post_type = 'page' and post_status != 'trash' AND meta_key = 'migration_status' GROUP BY meta_value", OBJECT_K );
+
+		$site->page_count = $total_pages;
+
+		$site->migration_status_new         = isset( $stats['new'] ) ? $stats['new']->value : 0;
+		$site->migration_status_in_progress = isset( $stats['in_progress'] ) ? $stats['in_progress']->value : 0;
+		$site->migration_status_in_review   = isset( $stats['in_review'] ) ? $stats['in_review']->value : 0;
+		$site->migration_status_complete    = isset( $stats['complete'] ) ? $stats['complete']->value : 0;
+
+		if ($site->migration_status_new + $site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete != $total_pages){
+			//Must be some pages missing meta data.
+			$site->migration_status_new = ($total_pages - ($site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete));
+		}
+
+		restore_current_blog();
+		return $site;
 	}
 
 }

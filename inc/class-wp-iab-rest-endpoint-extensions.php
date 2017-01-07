@@ -32,6 +32,29 @@ class WP_IAB_Rest_Endpoint_Extensions {
 			'schema'          => null,
 		) );
 
+		register_rest_field( 'page', 'migration_notes', array(
+			'get_callback'    => array( $this, 'get_migration_notes' ),
+			'update_callback' => array( $this, 'update_migration_notes' ),
+			'schema'          => null,
+		) );
+
+		register_rest_field( 'page', 'migration_old_url', array(
+			'get_callback'    => array( $this, 'get_migration_old_url' ),
+			'update_callback' => array( $this, 'update_migration_old_url' ),
+			'schema'          => null,
+		) );
+
+		register_rest_field( 'page', 'migration_status', array(
+			'get_callback'    => array( $this, 'get_migration_status' ),
+			'update_callback' => array( $this, 'update_migration_status' ),
+			'schema'          => array(
+				'description' => __( 'Migration Status', 'wpiab' ),
+				'type'        => 'string',
+				'enum' => array('new', 'in_progress', 'in_review', 'complete'),
+				'context'     => array( 'view', 'edit' ),
+			)
+		) );
+
 
 	}
 
@@ -44,6 +67,43 @@ class WP_IAB_Rest_Endpoint_Extensions {
 
 	public function get_site_id( $object, $field_name, $request ) {
 		return get_current_blog_id();
+	}
+
+	public function get_migration_notes( $object, $field_name, $request ) {
+		return esc_textarea( strip_tags( get_post_meta( $object['id'], $field_name, true ) ) );
+	}
+
+	public function update_migration_notes( $value, $object, $field_name ) {
+		if ( ! $value || ! is_string( $value ) ) {
+			return;
+		}
+
+		return update_post_meta( $object->ID, $field_name, strip_tags( $value ) );
+	}
+
+	public function get_migration_old_url( $object, $field_name, $request ) {
+		return esc_textarea( strip_tags( get_post_meta( $object['id'], $field_name, true ) ) );
+	}
+
+	public function update_migration_old_url( $value, $object, $field_name ) {
+		if ( ! $value || ! is_string( $value ) ) {
+			return;
+		}
+
+		return update_post_meta( $object->ID, $field_name, strip_tags( $value ) );
+	}
+
+	public function get_migration_status( $object, $field_name, $request ) {
+		$result = esc_html( strip_tags( get_post_meta( $object['id'], $field_name, true ) ) );
+		return empty($result) ? 'new' : $result;
+	}
+
+	public function update_migration_status( $value, $object, $field_name ) {
+		if ( ! $value || ! is_string( $value ) ) {
+			return;
+		}
+
+		return update_post_meta( $object->ID, $field_name, strip_tags( $value ) );
 	}
 
 	public function on_pre_insert_post( $prepared_post, $request ) {
