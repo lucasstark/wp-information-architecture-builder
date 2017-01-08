@@ -350,6 +350,7 @@
                         delete tmp.rename;
                         delete tmp.remove;
                     } else {
+                        delete tmp.ccp;
                         //Context menu for any page.
                         //Reset the create action to create a new tree node and then call the edit function.
                         tmp.create.label = wp_iab_params.labels.new_page;
