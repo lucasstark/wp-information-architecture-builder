@@ -1,8 +1,15 @@
 <?php
-
 /*
- * Plugin Name:  WordPress Information Architecture Builder
- */
+Plugin Name:  WordPress Information Architecture Builder ( BETA )
+Plugin URI: https://github.com/lucasstark/wp-information-architecture-builder
+Description: Create an information architecture for a WordPress multisite.
+Version: 0.5.0
+Author: Lucas Stark
+Author URI: http://www.elementstark.com
+Requires at least: 4.7
+Tested up to: 4.7.1
+*/
+
 
 class WP_IAB_Main {
 
@@ -52,11 +59,11 @@ class WP_IAB_Main {
 
 	private function __construct() {
 		$this->assets_version = '1.0.0';
-		$this->dir = plugin_dir_path( __FILE__ );
-		$this->url = plugin_dir_url( __FILE__ );
+		$this->dir            = plugin_dir_path( __FILE__ );
+		$this->url            = plugin_dir_url( __FILE__ );
 
 
-		add_action('admin_init', array($this, 'on_admin_init'));
+		add_action( 'admin_init', array( $this, 'on_admin_init' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'on_admin_enqueue_scripts' ) );
 		add_action( 'network_admin_menu', array( $this, 'on_admin_menu' ) );
 
@@ -64,7 +71,7 @@ class WP_IAB_Main {
 
 	}
 
-	public function on_admin_init(){
+	public function on_admin_init() {
 		require $this->dir . '/inc/class-wp-iab-templates.php';
 		$this->templates = new WP_IAB_Templates();
 	}
@@ -118,16 +125,18 @@ class WP_IAB_Main {
 
 		$labels->root_node_text = __( 'Sites', 'wpiab' );
 
+		$current_site_id = BLOG_ID_CURRENT_SITE;
+		settype( $current_site_id, 'integer' );
 		$params = array(
-			'api_url' => esc_url_raw( rest_url() ),
-			'nonce'   => wp_create_nonce( 'wp_rest' ),
-			'domain'  => $network->domain,
-			'labels'  => $labels
+			'root_site_id' => $current_site_id,
+			'api_url'      => esc_url_raw( rest_url() ),
+			'nonce'        => wp_create_nonce( 'wp_rest' ),
+			'domain'       => $network->domain,
+			'labels'       => $labels
 		);
 
 		wp_localize_script( 'wpiab-main', 'wp_iab_params', $params );
 	}
-
 
 
 	/**
@@ -169,7 +178,7 @@ class WP_IAB_Main {
 	 * Render the page for our custom Network Admin screen. This is the main view with the tree, site and page information.
 	 */
 	public function page_index() {
-		$this->templates->get_template('dashboard.php');
+		$this->templates->get_template( 'dashboard.php' );
 	}
 
 }

@@ -13,9 +13,9 @@
             "click .btn-delete": "onDelete",
             "click .btn-cancel": 'onCancel',
             "change #migration-status": 'saveModel',
-            'focusout .title' : 'saveModel',
-            'focusout #migration-notes' : 'saveModel',
-            'focusout #migration-old-url' : 'saveModel'
+            'focusout .title': 'saveModel',
+            'focusout #migration-notes': 'saveModel',
+            'focusout #migration-old-url': 'saveModel'
         },
         initialize: function (options) {
             _.bindAll(this, 'onSave', 'onDelete', 'onCancel', 'updateModel', 'saveModel');
@@ -54,7 +54,7 @@
             var migration_status_previous = this.model.get('migration_status');
 
             var title = this.$el.find('input.title').eq(0).val();
-            if (title !== this.model.get('title').rendered){
+            if (title !== this.model.get('title').rendered) {
                 updateRequired = true;
                 this.model.set('title', {
                     raw: title,
@@ -131,19 +131,37 @@
         template: _.template($('#site-info-pane-template').html()),
         el: $('#site-info-pane'),
         initialize: function () {
-            _.bindAll(this, "render");
+            _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);
             this.$content = this.$el.find('.site-info-content').eq(0);
-        },
-        //Renders the pie chart.
-        render: function (model, treeNode) {
-            this.block();
 
-            this.stopListening(this.model);
+
+
+        },
+        switchModels : function(model, collection, siteTreeNode) {
+            this.siteTreeNode = siteTreeNode;
+
+            if (this.model) {
+                this.stopListening(this.model);
+            }
+
+            if (this.collection) {
+                this.stopListening(this.collection);
+            }
 
             this.model = model;
+            this.collection = collection;
 
             this.listenTo(this.model, 'change', this.render);
+            this.listenTo(this.collection, 'add', this.addPage);
+            this.listenTo(this.collection, 'remove', this.removePage);
+            this.render(model);
+        },
+        //Renders the pie chart.
+        render: function (model) {
+            //Get's called when any of the models properties change and when an item is added or removed from the pages collection.
+
+            this.block();
 
             this.$content.empty();
             this.$content.html(this.template(this.model.toJSON()));
@@ -205,6 +223,18 @@
         },
         unblock: function () {
             this.$el.unblock();
+        },
+        addPage: function (pageModel) {
+            //When an item is added to the sites pages collection.
+            //Update the status counts on this views model, which is a Site model.
+            var count = this.model.get('migration_status_' + pageModel.get('migration_status') );
+            this.model.set('migration_status_' + pageModel.get('migration_status'), count + 1);
+        },
+        removePage: function (pageModel) {
+            //When an item is removed from the sites pages collection.
+            //Update the status counts on this views model, which is a Site model.
+            var count = this.model.get('migration_status_' + pageModel.get('migration_status') );
+            this.model.set('migration_status_' + pageModel.get('migration_status'), count - 1);
         }
     });
 
@@ -216,11 +246,10 @@
             if (treeNode.type === 'page' || treeNode.type === 'default') {
                 this.infoPane.render(model, treeNode);
                 var siteTreeNode = getSiteTreeNode(treeNode);
-                this.siteInfoPane.render(siteTreeNode.data.model, siteTreeNode);
+                this.siteInfoPane.switchModels(siteTreeNode.data.model, siteTreeNode.data.pages, siteTreeNode);
             } else if (treeNode.type === 'site') {
-                var siteTreeNode = getSiteTreeNode(treeNode);
                 this.infoPane.empty();
-                this.siteInfoPane.render(model, siteTreeNode);
+                this.siteInfoPane.switchModels(model, treeNode.data.pages, siteTreeNode);
             }
         },
         tree: null
@@ -252,6 +281,7 @@
 
         rootData = {
             models: _.extend({}, this.models),
+            collections: _.extend({}, this.collections),
             sitesCollection: new this.collections.Sites()
         }
 
@@ -327,6 +357,7 @@
                             var inst = $.jstree.reference(data.reference), obj = inst.get_node(data.reference);
                             inst.create_node(obj, {
                                     type: 'page',
+                                    icon : 'glyph-icon fa fa-file font-new',
                                     text: wp_iab_params.labels.new_page
                                 },
 
@@ -416,26 +447,29 @@
 
                         //This loads the first level of pages from a site.
                         if (node.parent === 'root') {
+
                             var site_id = node.data.model.id;
 
-                            wp.api.init({
-                                apiRoot: node.data.model.get('url') + '/wp-json/'
-                            }).done(function () {
+                            /*
+                             Because of how WP API init works we need to load our models and collections from the rootData endpoint which
+                             we have already loaded on initial page load.  If we don't do this the root site's objects will get the URL from the
+                             last site we opened.
 
+                             TODO:  Review using the wp.api.init method to build the Pages collection, seems like there should be a more efficent way.
+                             */
+                            if (site_id == wp_iab_params.root_site_id) {
                                 node.data.api = {
                                     models: {},
                                     collections: {}
                                 };
 
-                                //When the WP JSON client library completes here we need to copy models, collection and create a new instance of the Pages collection.
-                                node.data.api.models = _.extend({}, this.models);
-                                node.data.api.collections = _.extend({}, this.collections);
+                                node.data.api.models = rootData.models;//Keep a reference to the models, not used but here for future use.
+                                node.data.api.collections = rootData.collections;//Keep a reference to the collections, not used but here for future use.
                                 node.data.pages = new node.data.api.collections.Pages();
-
                                 //Tell the sites Pages collection to fetch it's data.
                                 //Reset is set to false so that the collection is not emptied after the collection syncs.
                                 node.data.pages.fetch({
-                                    merge: true, silent: false, add: true, remove: false,
+                                    merge: true, silent: true, add: true, remove: false,
                                     data: {
                                         'orderby': 'menu_order',
                                         'order': 'asc',
@@ -458,14 +492,62 @@
                                     );
                                 });
 
-                            });
+                            } else {
+                                wp.api.init({
+                                    apiRoot: node.data.model.get('url') + '/wp-json/'
+                                }).done(function () {
+
+                                    node.data.api = {
+                                        models: {},
+                                        collections: {}
+                                    };
+
+                                    //When the WP JSON client library completes here we need to copy models, collection and create a new instance of the Pages collection.
+                                    node.data.api.models = _.extend({}, this.models);//Keep a reference to the models, not used but here for future use.
+                                    node.data.api.collections = _.extend({}, this.collections);//Keep a reference to the collections, not used but here for future use.
+                                    node.data.pages = new node.data.api.collections.Pages();
+
+                                    //Tell the sites Pages collection to fetch it's data.
+                                    //Reset is set to false so that the collection is not emptied after the collection syncs.
+                                    node.data.pages.fetch({
+                                        merge: true, silent: true, add: true, remove: false,
+                                        data: {
+                                            'orderby': 'menu_order',
+                                            'order': 'asc',
+                                            'parent': 0,
+                                            'per_page': 100,
+                                        }
+                                    }).done(function (items) {
+
+                                        if (node.data.pages.hasMore()) {
+                                            //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
+                                            alert('This site has more than 100 children at the root.   Consider moving pages into smaller sections.');
+                                        }
+
+                                        cb.call(treeInstance, items.map(function (post) {
+                                                return {
+                                                    id: site_id + '-' + 'item-' + post.id,
+                                                    text: post.title.rendered,
+                                                    children: post.has_children,
+                                                    type: 'page',
+                                                    icon: getNodeIcon(node.data.pages.get(post.id)),
+                                                    data: {
+                                                        model: node.data.pages.get(post.id),
+                                                    }
+                                                }
+                                            })
+                                        );
+                                    });
+
+                                });
+                            }
                         } else {
                             //Get the nodes parent site node.
                             //The site node has a reference to the collection for it's pages.
                             var siteTreeNode = getSiteTreeNode(node);
 
                             siteTreeNode.data.pages.fetch({
-                                merge: true, silent: false, add: true, remove: false,
+                                merge: true, silent: true, add: true, remove: false,
                                 data: {
                                     'orderby': 'menu_order',
                                     'order': 'asc',
