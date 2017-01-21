@@ -1960,14 +1960,16 @@ var WPIAB_SCHEMA = {
     SitesCollection.prototype = Object.create(wp.api.collections.Sites.prototype);
 
 
-    var PageView = function (siteView, model) {
+    var PageView = function (siteView, model, jsTree) {
         this.model = model;
         this.siteView = siteView;
+        this.jsTree = jsTree;
     }
 
     _.extend(PageView.prototype, Backbone.Events);
 
     PageView.prototype.onSelect = function (treeNode) {
+        console.log(this.jsTree.get_node(this.getTreeNodeId()));
         this.trigger('builder:page:selected', this, treeNode);
     }
 
@@ -1996,7 +1998,8 @@ var WPIAB_SCHEMA = {
 
         var doneFunction = function (result, childTreeNode) {
             //Remove the spinner from this specific item.
-            $('#' + childTreeNode.getTreeNodeId()).removeClass('jstree-loading').attr('aria-busy', false);
+
+            $('#' + childTreeNode.view.getTreeNodeId()).removeClass('jstree-loading').attr('aria-busy', false);
 
             activeCalls--;
             if (activeCalls === 0) {
@@ -2056,8 +2059,13 @@ var WPIAB_SCHEMA = {
         return 'site-' + this.getSiteId() + '-' + 'item-' + this.model.get('id');
     }
 
+    PageView.prototype.getTreeNode = function () {
+        return this.tree.get_node(this.getTreeNodeId());
+    }
 
-    var SiteView = function (model) {
+
+    var SiteView = function (model, jsTree) {
+        this.jsTree = jsTree;
         this.model = model;
         this.collection = new PagesCollection(model.get('url') + '/wp-json');
     }
@@ -2076,7 +2084,7 @@ var WPIAB_SCHEMA = {
 
         this.collection.fetch(parentId || 0).done(function (results) {
             var views = results.map(function (result) {
-                return new PageView(self, self.collection.get(result.id));
+                return new PageView(self, self.collection.get(result.id), self.jsTree);
             });
 
             views.forEach(function (view) {
@@ -2114,9 +2122,8 @@ var WPIAB_SCHEMA = {
         var promise = deferred.promise();
 
         this.collection.fetch({data: {per_page: 0}}).done(function () {
-
             self.views = self.collection.map(function (model) {
-                return new SiteView(model);
+                return new SiteView(model, self.jsTree);
             });
 
             self.views.forEach(function (view) {
@@ -2145,7 +2152,7 @@ var WPIAB_SCHEMA = {
     $.jstree.defaults.core.themes.variant = "large";
     $.jstree.defaults.core.themes.stripes = true;
 
-    $('#network_browser_tree').jstree({
+    networkView.tree = $('#network_browser_tree').jstree({
         'types': {
             'default': {},
             'page': {
@@ -2269,6 +2276,7 @@ var WPIAB_SCHEMA = {
                 var treeInstance = this;
 
                 if (node.id === '#') {
+                    networkView.jsTree = treeInstance;
                     networkView.getChildren().done(function (views) {
                         var self = this;
 
