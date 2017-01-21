@@ -20,15 +20,25 @@
 
     var PageModel = function (attributes, options) {
         wp.api.models.Page.call(this, attributes, options);
+        this.baseUrl = this.collection.url();
     }
 
     PageModel.prototype = Object.create(wp.api.models.Page.prototype);
+
+    PageModel.prototype.url = function () {
+
+        var url = this.baseUrl;
+        if (!_.isUndefined(this.get('id'))) {
+            url += '/' + this.get('id');
+        }
+        return url;
+
+    }
 
 
     PageModel.prototype.getChildren = function () {
         return this.collection.fetch(this.get('id'));
     }
-
 
     var PagesCollection = function (baseUrl, models, options) {
         wp.api.collections.Pages.call(this, models, options);
@@ -67,11 +77,9 @@
     SitesCollection.prototype = Object.create(wp.api.collections.Sites.prototype);
 
 
-    var PageView = function (parentView, model) {
+    var PageView = function (siteView, model) {
         this.model = model;
-        this.siteView = parentView.siteView || parentView; //If no siteView property set on parent, the parent is the siteView
-        this.parentView = parentView;
-        this.views = [];
+        this.siteView = siteView;
     }
 
     _.extend(PageView.prototype, Backbone.Events);
@@ -81,39 +89,16 @@
     }
 
     PageView.prototype.getChildren = function () {
-        var self = this;
-
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-        self.siteView.collection.fetch(this.model.get('id')).done(function (results) {
-            self.views = results.map(function (result) {
-                return new PageView(self, self.siteView.collection.get(result.id));
-            });
-
-            self.views.forEach(function (view) {
-                self.listenTo(view, 'builder:page:selected', function (sender, treeNode) {
-                    self.trigger('builder:page:selected', sender, treeNode);
-                });
-            });
-
-            deferred.resolveWith(self, [self.views]);
-        });
-
-        return promise;
+        return this.siteView.getChildren(this.model.get('id'));
     }
 
-    PageView.prototype.onMoveNode = function (e, data) {
+    PageView.prototype.onMoveNode = function (e, treeNodeData) {
 
         //parent node is the new parent in jsTree.
-        data.instance.deselect_all();
+        treeNodeData.instance.deselect_all();
 
-        var parentNode = data.instance.get_node(data.node.parent);
-        //var parentDomNode = data.instance.get_node(data.node.parent, true);
-
-        this.parentView.viewRemove(this);
-        parentNode.data.view.viewAdd(this);
-
+        var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
+        var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
         var parent_wp_id = 0;
 
         //if the parent is site, the wp parent id needs to remian 0
@@ -122,53 +107,39 @@
         }
 
         //Reset the icon to a folder, since we know for sure that it has children now.
-        data.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
+        treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
 
-        var activeCalls = parentNode.children.length - data.position;
+        var activeCalls = parentNode.children.length - treeNodeData.position;
 
-        var doneFunction = function (result) {
+        var doneFunction = function (result, childTreeNode) {
             //Remove the spinner from this specific item.
-            $('#' + siteNode.data.model.id + '-item-' + result.id).removeClass('jstree-loading').attr('aria-busy', false);
+            $('#' + childTreeNode.getTreeNodeId()).removeClass('jstree-loading').attr('aria-busy', false);
 
             activeCalls--;
             if (activeCalls === 0) {
-                data.instance.get_node(data.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
-                WPIAB.setLoading(false);
-                WPIAB.App.switchView(data.node.data.model, data.node);
+                treeNodeData.instance.get_node(data.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
+                //WPIAB.setLoading(false);
+                //WPIAB.App.switchView(data.node.data.model, data.node);
             }
         };
 
         for (var i = 0; i < parentNode.children.length; i++) {
-            if (i >= data.position) {
-                var child = data.instance.get_node(parentNode.children[i]);
+            if (i >= treeNodeData.position) {
+                var child = treeNodeData.instance.get_node(parentNode.children[i]);
 
                 child.data.view.model.set('parent', parent_wp_id);
                 child.data.view.model.set('menu_order', i);
 
                 //Set the spinner on the individual item
-                $('#' + child.data.view.getSiteId() + '-item-' + child.data.view.model.get('id')).addClass('jstree-loading').attr('aria-busy', true);
+                $('#' + child.data.view.getTreeNodeId()).addClass('jstree-loading').attr('aria-busy', true);
 
-                child.data.view.model.save().done(doneFunction);
+                child.data.view.model.save().done(function (result) {
+                    doneFunction(result, child);
+                });
             }
         }
     }
 
-    PageView.prototype.viewAdd = function (view) {
-        var self = this;
-        view.parentView = self;
-        self.views.push(view);
-        self.listenTo(view, 'builder:page:selected', function (sender, treeNode) {
-            self.trigger('builder:page:selected', sender, treeNode);
-        });
-    }
-
-    PageView.prototype.viewRemove = function (view) {
-        var idx = this.views.indexOf(view);
-        if (idx != -1) {
-            this.stopListening(view);
-            this.views = this.views.splice(idx, 1);
-        }
-    }
 
     PageView.prototype.getSiteId = function () {
         return this.siteView.model.get('id');
@@ -199,14 +170,13 @@
     }
 
     PageView.prototype.getTreeNodeId = function () {
-        return this.getSiteId() + '-' + 'item-' + this.model.get('id');
+        return 'site-' + this.getSiteId() + '-' + 'item-' + this.model.get('id');
     }
 
 
     var SiteView = function (model) {
         this.model = model;
         this.collection = new PagesCollection(model.get('url') + '/wp-json');
-        this.views = [];
     }
 
     _.extend(SiteView.prototype, Backbone.Events);
@@ -215,24 +185,24 @@
         this.trigger('builder:site:selected', this, treeNode);
     }
 
-    SiteView.prototype.getChildren = function () {
+    SiteView.prototype.getChildren = function (parentId) {
         var self = this;
 
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        this.collection.fetch(0).done(function () {
-            self.views = self.collection.map(function (model) {
-                return new PageView(self, model);
+        this.collection.fetch(parentId || 0).done(function (results) {
+            var views = results.map(function (result) {
+                return new PageView(self, self.collection.get(result.id));
             });
 
-            self.views.forEach(function (view) {
+            views.forEach(function (view) {
                 self.listenTo(view, 'builder:page:selected', function (sender, treeNode) {
                     self.trigger('builder:page:selected', sender, treeNode);
                 })
             });
 
-            deferred.resolveWith(self, [self.views]);
+            deferred.resolveWith(self, [views]);
         });
 
         return promise;
@@ -268,7 +238,7 @@
 
             self.views.forEach(function (view) {
                 self.listenTo(view, 'builder:page:selected', function (sender, treeNode) {
-                    self.infoPane.render(sender.model, treeNode);
+                    self.infoPane.render(sender, treeNode);
                     self.siteInfoPane.switchModels(sender.siteView.model, sender.siteView.collection, treeNode);
                 });
 
@@ -469,7 +439,7 @@
     })
         .on('loading_node.jstree', function (e, treeNodeData) {
             if (treeNodeData.node.type === 'site') {
-                //WPIAB.App.switchView(treeNodeData.node.data.model, treeNodeData.node);
+                treeNodeData.node.data.view.onSelect(treeNodeData.node);
             }
             WPIAB.setLoading(true);
         })
@@ -488,11 +458,11 @@
         .on('move_node.jstree', function (e, treeNodeData) {
             treeNodeData.node.data.view.onMoveNode(e, treeNodeData);
         })
-        .on('changed.jstree', function (e, data) {
-            if (data && data.selected && data.selected.length === 1 && (data.node.type == 'page' || data.node.type == 'default')) {
-                data.node.data.view.onSelect(data.node);
-            } else if (data && data.selected && data.selected.length === 1 && data.node.type === 'site') {
-                data.node.data.view.onSelect(data.node);
+        .on('changed.jstree', function (e, treeNodeData) {
+            if (treeNodeData && treeNodeData.selected && treeNodeData.selected.length === 1 && (treeNodeData.node.type == 'page' || treeNodeData.node.type == 'default')) {
+                treeNodeData.node.data.view.onSelect(treeNodeData.node);
+            } else if (treeNodeData && treeNodeData.selected && treeNodeData.selected.length === 1 && treeNodeData.node.type === 'site') {
+                treeNodeData.node.data.view.onSelect(treeNodeData.node);
             }
             // WPIAB.node_changed(e, data);
         })

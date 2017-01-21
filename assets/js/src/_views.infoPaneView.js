@@ -23,9 +23,10 @@
         empty: function () {
             this.$el.empty();
         },
-        render: function (model, treeNode) {
+        render: function (modelView, treeNode) {
 
-            this.model = model;
+            this.modelView = modelView;
+            this.model = modelView.model;
             this.treeNode = treeNode;
             this.empty();
 
@@ -48,8 +49,7 @@
         updateModel: function () {
             var updateRequired = false;
 
-            var siteTreeNode = WPIAB.getSiteTreeNode(this.treeNode);
-            var siteModel = siteTreeNode.data.model;
+            var siteModel = this.modelView.siteView.model;
             var migration_status_previous = this.model.get('migration_status');
 
             var title = this.$el.find('input.title').eq(0).val();
