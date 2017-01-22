@@ -62,7 +62,7 @@ class WP_IAB_Rest_Endpoint_Extensions {
 		global $wpdb;
 		$has_children = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_parent = %d AND post_type = 'page' AND post_status = 'publish'", $object['id'] ) );
 
-		return ! empty( $has_children );
+		return !empty( $has_children );
 	}
 
 	public function get_site_id( $object, $field_name, $request ) {

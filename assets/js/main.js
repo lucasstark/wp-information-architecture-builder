@@ -1,13 +1,18 @@
-(function ($) {
+(function ($, wp) {
+
+
+    wp.jstree = wp.jstree || {};
+    wp.jstree.utils = wp.jstree.utils || {};
+    wp.jstree.ui = wp.jstree.ui || {};
+    wp.jstree.views = wp.jstree.views || {};
 
     /**
      * The view for each page.  Has the title and other fields.
      */
-    var InfoPaneView = Backbone.View.extend({
+    wp.jstree.views.ItemView = Backbone.View.extend({
         treeNode: {},
         //Template is in views/index.php
         template: _.template($('#info-pane-template').html()),
-        el: $('#info-pane'),
         events: {
             "click .btn-save": "onSave",
             "click .btn-delete": "onDelete",
@@ -18,20 +23,21 @@
             'focusout #migration-old-url': 'saveModel'
         },
         initialize: function (options) {
+            this.$content = this.$el.find('#info-pane');
+
             _.bindAll(this, 'onSave', 'onDelete', 'onCancel', 'updateModel', 'saveModel');
         },
         empty: function () {
-            this.$el.empty();
+            this.$content.empty();
         },
-        render: function (model, treeNode) {
-            console.log(model);
+        switchNode: function (treeNode) {
 
-            this.model = model;
+            this.model = treeNode.data.model;
             this.treeNode = treeNode;
             this.empty();
 
-            this.$el.html(this.template(this.model.attributes));
-            this.$el.find('input.title').eq(0).focus(function () {
+            this.$content.html(this.template(this.model.attributes));
+            this.$content.find('input.title').eq(0).focus(function () {
                 $(this).select()
             });
         },
@@ -49,8 +55,9 @@
         updateModel: function () {
             var updateRequired = false;
 
-            var siteTreeNode = getSiteTreeNode(this.treeNode);
-            var siteModel = siteTreeNode.data.model;
+            var endpoint = this.treeNode.data.getEndpoint();
+            var siteModel = endpoint.siteNode.model;
+
             var migration_status_previous = this.model.get('migration_status');
 
             var title = this.$el.find('input.title').eq(0).val();
@@ -97,14 +104,14 @@
                 var inst = $.jstree.reference(this.treeNode);
                 var domNode = inst.get_node(this.treeNode, true);
 
-                setLoading(true, domNode);
+                wp.jstree.ui.setLoading(true, domNode);
                 this.block();
 
                 this.model.save().done(function () {
                     inst.set_text(self.treeNode, self.model.get('title').rendered);
-                    inst.set_icon(self.treeNode, getNodeIcon(self.model));
+                    inst.set_icon(self.treeNode, wp.jstree.utils.getNodeIcon(self.model));
 
-                    setLoading(false, domNode);
+                    wp.jstree.ui.setLoading(false, domNode);
                     self.unblock();
                 });
             }
@@ -126,20 +133,17 @@
     });
 
     //Contains the chart for the site information.
-    var SiteInfoPaneView = Backbone.View.extend({
+    wp.jstree.views.SiteView = Backbone.View.extend({
         //Template is in views/index.php
         template: _.template($('#site-info-pane-template').html()),
-        el: $('#site-info-pane'),
         initialize: function () {
             _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);
             this.$content = this.$el.find('.site-info-content').eq(0);
-
-
+            console.log(this.$el.html())
 
         },
-        switchModels : function(model, collection, siteTreeNode) {
-            this.siteTreeNode = siteTreeNode;
+        switchNode: function (treeNode) {
 
             if (this.model) {
                 this.stopListening(this.model);
@@ -149,13 +153,14 @@
                 this.stopListening(this.collection);
             }
 
-            this.model = model;
-            this.collection = collection;
+            var endpoint = treeNode.data.getEndpoint();
+            this.model = endpoint.siteNode.model;
+            this.collection = endpoint.collection;
 
             this.listenTo(this.model, 'change', this.render);
             this.listenTo(this.collection, 'add', this.addPage);
             this.listenTo(this.collection, 'remove', this.removePage);
-            this.render(model);
+            this.render(this.model);
         },
         //Renders the pie chart.
         render: function (model) {
@@ -163,8 +168,8 @@
 
             this.block();
 
-            this.$content.empty();
-            this.$content.html(this.template(this.model.toJSON()));
+            //this.$content.empty();
+            //this.$content.html(this.template(this.model.toJSON()));
 
             var data = [
                 {
@@ -227,557 +232,236 @@
         addPage: function (pageModel) {
             //When an item is added to the sites pages collection.
             //Update the status counts on this views model, which is a Site model.
-            var count = this.model.get('migration_status_' + pageModel.get('migration_status') );
+            var count = this.model.get('migration_status_' + pageModel.get('migration_status'));
             this.model.set('migration_status_' + pageModel.get('migration_status'), count + 1);
         },
         removePage: function (pageModel) {
             //When an item is removed from the sites pages collection.
             //Update the status counts on this views model, which is a Site model.
-            var count = this.model.get('migration_status_' + pageModel.get('migration_status') );
+            var count = this.model.get('migration_status_' + pageModel.get('migration_status'));
             this.model.set('migration_status_' + pageModel.get('migration_status'), count - 1);
         }
     });
 
-    //Helper class to keep track of our main views.
-    var App = {
-        infoPane: new InfoPaneView(),
-        siteInfoPane: new SiteInfoPaneView(),
-        switchView: function (model, treeNode) {
-            if (treeNode.type === 'page' || treeNode.type === 'default') {
-                this.infoPane.render(model, treeNode);
-                var siteTreeNode = getSiteTreeNode(treeNode);
-                this.siteInfoPane.switchModels(siteTreeNode.data.model, siteTreeNode.data.pages, siteTreeNode);
-            } else if (treeNode.type === 'site') {
-                this.infoPane.empty();
-                this.siteInfoPane.switchModels(model, treeNode.data.pages, siteTreeNode);
-            }
-        },
-        tree: null
+
+    wp.jstree.NetworkNode = function (networkId) {
+        this.networkId = networkId;
+    };
+
+    wp.jstree.NetworkNode.prototype.fetch = function () {
+
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        wp.api.init({
+            apiRoot: wp_iab_params.api_url
+        }).done(function (endpoint) {
+
+            var collections = endpoint.get('collections');
+            var sites = new collections.Sites();
+
+            sites.fetch().done(function (results) {
+
+                var childNodes = results.map(function (result) {
+                    var model = sites.get(result.id);
+                    return {
+                        id: 'network-' + self.networkId + '-site-' + model.get('id'),
+                        text: wp.jstree.utils.getNodeTitle(model),
+                        children: true,
+                        type: 'site',
+                        data: new wp.jstree.SiteNodeData(model)
+                    }
+                });
+
+                var node = {
+                    id: 'root',
+                    type: 'network',
+                    text: wp_iab_params.root_node_text,
+                    children: childNodes,
+                    state: {
+                        'opened': true,
+                        'selected': false,
+                        'disabled': false
+                    },
+                }
+
+                deferred.resolveWith(self, [node]);
+            });
+        });
+
+        return promise;
+
+    };
+
+
+    /**
+     * Initializes a wp.api endpoint for the specific URL
+     * @param wpApiSiteUrl The URL to the site's api root
+     * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
+     * @constructor
+     */
+    wp.jstree.SiteNodeData = function (model) {
+        this.model = model;
+        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
+        this.endpoints = {};
+    };
+
+    wp.jstree.SiteNodeData.prototype.getEndpoint = function (endPointName) {
+        return this.endpoints[endPointName || 'Pages'];
+    };
+
+    wp.jstree.SiteNodeData.prototype.fetch = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        wp.api.init({
+            apiRoot: this.wpApiSiteUrl
+        }).done(function (endpoint) {
+
+            //Create just the Pages endpoint and return the root pages as the initial nodes.
+            //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
+            var collections = endpoint.get('collections');
+            self.endpoints['Pages'] = new wp.jstree.EndPointNodeData(new collections.Pages(), self);
+            self.endpoints['Pages'].fetch().done(function (results) {
+                deferred.resolveWith(self, [results]);
+            });
+        });
+
+        return promise;
+
+    };
+
+    wp.jstree.SiteNodeData.prototype.getSiteId = function () {
+        return this.model.get('id');
+    };
+
+    wp.jstree.SiteNodeData.prototype.treeCreateNode = function (menu_order) {
+        //Delegate back down to the Pages endpoint node data object.
+        //If we wanted to load more than just Pages for the site this needs to be updated.
+        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
     }
 
 
-    $.jstree.defaults.core.themes.variant = "large";
-    $.jstree.defaults.core.themes.stripes = true;
+    wp.jstree.EndPointNodeData = function (collection, siteNode) {
+        this.siteNode = siteNode;
+        this.collection = collection;
+    };
 
-    //rootData will be filled with a collection of Sites from our custom endpoint.
-    var rootData = {};
+    wp.jstree.EndPointNodeData.prototype.getEndpoint = function () {
+        return this;
+    };
 
-    //Show the loading animation on the network tree view while it's loading for the first time.
-    $('.network_browser_tree_container').block({
-        message: null,
-        overlayCSS: {
-            background: '#000',
-            opacity: 0.2
-        }
-    });
+    wp.jstree.EndPointNodeData.prototype.getSiteId = function () {
+        return this.siteNode.getSiteId();
+    };
 
-    setLoading(true);
+    wp.jstree.EndPointNodeData.prototype.fetch = function (parent) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
 
-
-    //Initialize the API for the Sites endpoint.  Creates a collection of Site models and stores it in rootData.
-    wp.api.init({
-        apiRoot: wp_iab_params.api_url
-    }).done(function () {
-
-        rootData = {
-            models: _.extend({}, this.models),
-            collections: _.extend({}, this.collections),
-            sitesCollection: new this.collections.Sites()
+        var queryData = {
+            'orderby': 'menu_order',
+            'order': 'asc',
+            'parent': parent || 0,
+            'per_page': 100,
         }
 
-        rootData.sitesCollection.fetch({data: {per_page: 0}}).done(loadTree);
-    });
+        this.collection.fetch({
+            merge: true, silent: true, add: true, remove: false,
+            data: queryData
+        }).done(function (items) {
 
-    //Initialize the tree and hook up all the actions.
-    function loadTree() {
-        App.tree = $('#network_browser_tree').jstree({
-            'types': {
-                'default': {},
-                'page': {
-                    'valid_children': ['page']
-                },
-                'site': {
-                    'icon': "glyph-icon fa fa-globe font-green",
-                    'valid_children': ['page']
-                },
-                'network': {
-                    'icon': "glyph-icon fa fa-globe font-green",
-                    'valid_children': ['site']
-                }
+            if (self.collection.hasMore()) {
+                //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
+                alert('This site has more than 100 children at the root.   Consider moving pages into smaller sections.');
+            }
+
+            var results = items.map(function (post) {
+                var childModel = self.collection.get(post.id);
+                return wp.jstree.utils.postTypeToTreeNode(childModel, self);
+            });
+
+            deferred.resolveWith(self, [results]);
+        });
+
+        return promise;
+    };
+
+    /**
+     * Creates a new jsTree node object and sets a new wp.jstree.NodeData for use as the data property
+     * Note:    Creates and adds a new model to the collection if model arg is empty is empty.
+     *
+     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
+     */
+    wp.jstree.EndPointNodeData.prototype.treeCreateNode = function (parent, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+
+        var model = self.collection.create({
+                title: 'New Page',
+                parent: parent || 0,
+                menu_order: menu_order || 0,
+                status: 'draft',
+                migration_notes: '',
+                migration_old_url: '',
+                migration_content_status: '',
+                migration_status: 'new',
             },
-            "plugins": [
-                "types", "contextmenu", "dnd",
-            ],
-            'dnd': {
-                //Disallow dragging of sites since there isn't an order to the sites in a multisite.
-                'is_draggable': function (nodes) {
-                    for (var i = 0; i < nodes.length; i++) {
-                        if (nodes[i].type === 'site') {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }
-            },
-            'contextmenu': {
-                'items': function (node) {
-                    var tmp = $.jstree.defaults.contextmenu.items();
-                    delete tmp.create.action;
-
-                    //If the id is root, it's the "Sites" top level node.  Set the context menu to allow creating a new site.
-                    if (node.id === 'root') {
-                        tmp.create.label = wp_iab_params.labels.new_site;
-                        tmp.create.separator_after = false;
-                        tmp.create.separator_before = false;
-                        tmp.create.action = function (data) {
-                            var inst = $.jstree.reference(data.reference), obj = inst.get_node(data.reference);
-                            inst.create_node(obj, {
-                                    type: 'site',
-                                    text: wp_iab_params.labels.new_site
-                                },
-
-                                'last', function (new_node) {
-                                    console.log('Create Site Node');
-                                    setTimeout(function () {
-                                        inst.edit(new_node);
-                                    }, 0);
-                                });
-                        };
-
-                        //Remove other actions since create site is the only allowed operation.
-                        delete tmp.ccp;
-                        delete tmp.rename;
-                        delete tmp.remove;
-                    } else {
-                        delete tmp.ccp;
-                        //Context menu for any page.
-                        //Reset the create action to create a new tree node and then call the edit function.
-                        tmp.create.label = wp_iab_params.labels.new_page;
-                        tmp.create.action = function (data) {
-                            var inst = $.jstree.reference(data.reference), obj = inst.get_node(data.reference);
-                            inst.create_node(obj, {
-                                    type: 'page',
-                                    icon : 'glyph-icon fa fa-file font-new',
-                                    text: wp_iab_params.labels.new_page
-                                },
-
-                                'last', function (new_node) {
-                                    //The actual Page model is saved when the rename action is finalized, which is called after jstree rename is complete.
-                                    setTimeout(function () {
-                                        inst.edit(new_node);
-                                    }, 0);
-                                });
-                        };
-
-                        //Reset the remove action to delete the page model.
-                        tmp.remove.action = function (data) {
-                            var inst = $.jstree.reference(data.reference)
-                            var nodeToDelete = inst.get_node(data.reference);
-                            var domNodeToDelete = inst.get_node(data.reference, true);
-
-                            setLoading(true, domNodeToDelete);
-                            nodeToDelete.data.model.destroy().done(function () {
-                                setTimeout(function () {
-                                    inst.delete_node(nodeToDelete);
-                                    setLoading(false, domNodeToDelete);
-                                }, 0);
-                            });
-
-                        }
-                    }
-
-                    return tmp;
-                }
-            },
-            'core': {
-                'multiple': false,
-                'check_callback': function (operation, node, node_parent, node_position, more) {
-                    //TODO:  Allow dragging / copying between sites. Currently moving between sites is disabled.
-                    if (operation === 'move_node') {
-
-                        if (node_parent.type === 'site') {
-                            return false;
-                        }
-
-                        var current_node_site_id = node.parents[node.parents.length - 3]
-                        var new_node_site_id = node_parent.type === 'site' ? node_parent.id : node_parent.parents[node_parent.parents.length - 3]
-
-                        if (current_node_site_id !== new_node_site_id) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                },
-                'data': function (node, cb) {
-                    var treeInstance = this;
-
-                    //This is the root node from jstree.  Here we want to use the sites collection, loaded in rootData.sitesCollection on initial page load.
-                    //Create a tree node for each Site model. This gives us the first level of the tree.
-                    if (node.id === '#') {
-                        network_sites = [];
-                        //Loop though each Site model and create a jstree node
-                        rootData.sitesCollection.each(function (site) {
-                            network_sites.push({
-                                id: 'site-' + site.id,
-                                text: site.get('title'),
-                                children: true,
-                                type: 'site',
-                                data: {
-                                    model: site,
-                                }
-                            });
-                        });
-
-                        //Call the jstree callback, setting children to each tree node which represents a Site model.
-                        cb.call(this,
-                            {
-                                id: 'root',
-                                text: wp_iab_params.root_node_text,
-                                children: network_sites,
-                                type: 'network',
-                                state: {
-                                    'opened': true,
-                                    'selected': false,
-                                    'disabled': false
-                                },
-                            }
-                        );
-                    } else {
-
-                        //This loads the first level of pages from a site.
-                        if (node.parent === 'root') {
-
-                            var site_id = node.data.model.id;
-
-                            /*
-                             Because of how WP API init works we need to load our models and collections from the rootData endpoint which
-                             we have already loaded on initial page load.  If we don't do this the root site's objects will get the URL from the
-                             last site we opened.
-
-                             TODO:  Review using the wp.api.init method to build the Pages collection, seems like there should be a more efficent way.
-                             */
-                            if (site_id == wp_iab_params.root_site_id) {
-                                node.data.api = {
-                                    models: {},
-                                    collections: {}
-                                };
-
-                                node.data.api.models = rootData.models;//Keep a reference to the models, not used but here for future use.
-                                node.data.api.collections = rootData.collections;//Keep a reference to the collections, not used but here for future use.
-                                node.data.pages = new node.data.api.collections.Pages();
-                                //Tell the sites Pages collection to fetch it's data.
-                                //Reset is set to false so that the collection is not emptied after the collection syncs.
-                                node.data.pages.fetch({
-                                    merge: true, silent: true, add: true, remove: false,
-                                    data: {
-                                        'orderby': 'menu_order',
-                                        'order': 'asc',
-                                        'parent': 0,
-                                        'nopaging': true,
-                                    }
-                                }).done(function (items) {
-                                    cb.call(treeInstance, items.map(function (post) {
-                                            return {
-                                                id: site_id + '-' + 'item-' + post.id,
-                                                text: post.title.rendered,
-                                                children: post.has_children,
-                                                type: 'page',
-                                                icon: getNodeIcon(node.data.pages.get(post.id)),
-                                                data: {
-                                                    model: node.data.pages.get(post.id),
-                                                }
-                                            }
-                                        })
-                                    );
-                                });
-
-                            } else {
-                                wp.api.init({
-                                    apiRoot: node.data.model.get('url') + '/wp-json/'
-                                }).done(function () {
-
-                                    node.data.api = {
-                                        models: {},
-                                        collections: {}
-                                    };
-
-                                    //When the WP JSON client library completes here we need to copy models, collection and create a new instance of the Pages collection.
-                                    node.data.api.models = _.extend({}, this.models);//Keep a reference to the models, not used but here for future use.
-                                    node.data.api.collections = _.extend({}, this.collections);//Keep a reference to the collections, not used but here for future use.
-                                    node.data.pages = new node.data.api.collections.Pages();
-
-                                    //Tell the sites Pages collection to fetch it's data.
-                                    //Reset is set to false so that the collection is not emptied after the collection syncs.
-                                    node.data.pages.fetch({
-                                        merge: true, silent: true, add: true, remove: false,
-                                        data: {
-                                            'orderby': 'menu_order',
-                                            'order': 'asc',
-                                            'parent': 0,
-                                            'per_page': 100,
-                                        }
-                                    }).done(function (items) {
-
-                                        if (node.data.pages.hasMore()) {
-                                            //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
-                                            alert('This site has more than 100 children at the root.   Consider moving pages into smaller sections.');
-                                        }
-
-                                        cb.call(treeInstance, items.map(function (post) {
-                                                return {
-                                                    id: site_id + '-' + 'item-' + post.id,
-                                                    text: post.title.rendered,
-                                                    children: post.has_children,
-                                                    type: 'page',
-                                                    icon: getNodeIcon(node.data.pages.get(post.id)),
-                                                    data: {
-                                                        model: node.data.pages.get(post.id),
-                                                    }
-                                                }
-                                            })
-                                        );
-                                    });
-
-                                });
-                            }
-                        } else {
-                            //Get the nodes parent site node.
-                            //The site node has a reference to the collection for it's pages.
-                            var siteTreeNode = getSiteTreeNode(node);
-
-                            siteTreeNode.data.pages.fetch({
-                                merge: true, silent: true, add: true, remove: false,
-                                data: {
-                                    'orderby': 'menu_order',
-                                    'order': 'asc',
-                                    'parent': node.data.model.id,
-                                    //The WP REST api by default only allows 1 - 100 pages to be fetched at once.
-                                    'per_page': 100,
-                                }
-                            }).done(function (items) {
-
-                                if (siteTreeNode.data.pages.hasMore()) {
-                                    //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
-                                    alert('This page has more than 100 children.   Consider moving pages into smaller sections.');
-                                }
-
-                                cb.call(treeInstance, items.map(function (post) {
-                                    return {
-                                        id: siteTreeNode.data.model.id + '-' + 'item-' + post.id,
-                                        text: post.title.rendered,
-                                        children: post.has_children,
-                                        type: post.has_children ? 'default' : 'page',
-                                        icon: getNodeIcon(siteTreeNode.data.pages.get(post.id)),
-                                        data: {
-                                            //Set the treenode's data.model property to the actual page model.
-                                            model: siteTreeNode.data.pages.get(post.id),
-                                        }
-                                    }
-                                }));
-                            });
-                        }
-
-                    }
+            {
+                wait: true,
+                success: function (model) {
+                    var treeNode = wp.jstree.utils.postTypeToTreeNode(model, self)
+                    deferred.resolveWith(self, [treeNode]);
                 }
             }
-        })
-            .on('loading_node.jstree', function (e, treeNodeData) {
-                if (treeNodeData.node.type === 'site') {
-                    App.switchView(treeNodeData.node.data.model, treeNodeData.node);
-                }
-                setLoading(true);
-            })
-            .on('load_node.jstree', function (e, treeNodeData) {
-                setLoading(false);
-            })
-            .on('loaded.jstree', function (e, treeNodeData) {
-                console.log('Loaded');
-                setLoading(false);
-            })
-            .on('create_node.jstree', function (e, treeNodeData) {
+        );
 
-                if (treeNodeData.node.type === 'site') {
-                    var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
 
-                    var siteModel = new rootData.models.Sites({
-                        title: treeNodeData.node.text,
-                        domain: wp_iab_params.domain,
-                    });
-
-                    rootData.sitesCollection.add(siteModel);
-
-                    treeNodeData.node.data = {
-                        model: siteModel
-                    };
-
-                    treeNodeData.instance.deselect_all();
-                    treeNodeData.instance.select_node(treeNodeData.node)
-
-                } else {
-                    //Get the parent tree view node.
-                    var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
-
-                    //Reference to the site id.
-                    var siteTreeNode = getSiteTreeNode(treeNodeData.node);
-
-                    //If parent type is site post_parent will be 0, otherwise get the ID of the parent Page Model
-                    var parent_wp_id = parentNode.type === 'site' ? 0 : parentNode.data.model.id;
-
-                    var page_model = new siteTreeNode.data.api.models.Page({
-                        title: {
-                            raw: treeNodeData.node.text,
-                            rendered: treeNodeData.node.text
-                        },
-                        status: 'publish',
-                        parent: parent_wp_id,
-                        link: '',
-                        menu_order: parentNode.children.length + 1,
-                        migration_notes: '',
-                        migration_old_url: '',
-                        migration_content_status: '',
-                        migration_status: 'new',
-                    });
-
-                    //Add the new Page Model to the collection, but do not save it.
-                    //If we saved it here it would have the slug including 'Untitled'
-                    siteTreeNode.data.pages.add(page_model);
-
-                    //Add the Page Model reference to the tree node.
-                    treeNodeData.node.data = {
-                        model: page_model,
-                    }
-
-                    treeNodeData.instance.deselect_all();
-                    treeNodeData.instance.select_node(treeNodeData.node)
-                }
-
-            })
-            .on('rename_node.jstree', function (e, treeNodeData) {
-
-                var domNode = $('#' + treeNodeData.node.id);
-
-                if (treeNodeData.node.type === 'site') {
-                    treeNodeData.node.data.model.set('title', treeNodeData.node.text);
-                    treeNodeData.node.data.model.set('slug', ''); //empty slug so the server will generate it for us.
-                    setLoading(true, domNode);
-                    treeNodeData.node.data.model.save().done(function () {
-
-                        treeNodeData.node.children = true;
-                        treeNodeData.instance.refresh(treeNodeData.node);
-
-                        if (!treeNodeData.node.data.api) {
-                            wp.api.init({
-                                apiRoot: treeNodeData.node.data.model.get('url') + '/wp-json/'
-                            }).done(function () {
-
-                                treeNodeData.node.data.api = {
-                                    models: {},
-                                    collections: {}
-                                };
-
-                                treeNodeData.node.data.api.models = _.extend({}, this.models);
-                                treeNodeData.node.data.api.collections = _.extend({}, this.collections);
-                                treeNodeData.node.data.pages = new treeNodeData.node.data.api.collections.Pages();
-                                setLoading(false, domNode);
-                            });
-                        }
-                    });
-
-                } else {
-                    if (treeNodeData.node.data.model.get('title') !== treeNodeData.node.text) {
-                        treeNodeData.node.data.model.set('title', {
-                            raw: treeNodeData.node.text,
-                            rendered: treeNodeData.node.text
-                        });
-
-                        setLoading(true, domNode);
-                        treeNodeData.node.data.model.save().done(function () {
-                            App.switchView(treeNodeData.node.data.model, treeNodeData.node);
-                            setLoading(false, domNode);
-                        })
-
-                    }
-                }
-            })
-            .on('move_node.jstree', function (e, data) {
-
-                //parent node is the new parent in jsTree.
-                data.instance.deselect_all();
-                var parentNode = data.instance.get_node(data.node.parent);
-                var parentDomNode = data.instance.get_node(data.node.parent, true);
-                var siteNode = getSiteTreeNode(parentNode);
-
-                setLoading(true, parentDomNode);
-
-                var parent_wp_id = 0;
-
-                //if the parent is site, the wp parent id needs to remian 0
-                if (parentNode.type !== 'site') {
-                    parent_wp_id = parentNode.data.model.id;
-                }
-
-                //Reset the icon to a folder, since we know for sure that it has children now.
-                data.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
-
-                var activeCalls = parentNode.children.length - data.position;
-
-                for (var i = 0; i < parentNode.children.length; i++) {
-                    if (i >= data.position) {
-                        var child = data.instance.get_node(parentNode.children[i]);
-
-                        child.data.model.set('parent', parent_wp_id);
-                        child.data.model.set('menu_order', i);
-
-                        //Set the spinner on the individual item
-                        $('#' + siteNode.data.model.id + '-item-' + child.data.model.id).addClass('jstree-loading').attr('aria-busy', true);
-
-                        child.data.model.save().done(function (result) {
-                            //Remove the spinner from this specific item.
-                            $('#' + siteNode.data.model.id + '-item-' + result.id).removeClass('jstree-loading').attr('aria-busy', false);
-
-                            activeCalls--;
-                            if (activeCalls === 0) {
-                                data.instance.get_node(data.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
-                                setLoading(false);
-                                App.switchView(data.node.data.model, data.node);
-                            }
-                        });
-
-                    }
-                }
-            })
-            .on('changed.jstree', function (e, data) {
-
-                if (data && data.selected && data.selected.length === 1 && (data.node.type == 'page' || data.node.type == 'default')) {
-                    var site_id = data.node.data.model.get('site_id');
-                    App.switchView(data.node.data.model, data.node);
-                } else if (data && data.selected && data.selected.length === 1 && data.node.type === 'site') {
-                    App.switchView(data.node.data.model, data.node);
-                }
-            })
-            .on('ready.jstree', function (e) {
-                setLoading(false);
-                $('.network_browser_tree_container').unblock();
-            })
-
+        return promise;
     }
 
-    function getSiteTreeNode(node) {
-        var parent = App.tree.jstree('get_node', node.parents[node.parents.length - 3]);
-        return parent;
+
+    wp.jstree.NodeData = function (model, endpointNode) {
+        this.model = model;
+        this.endpointNode = endpointNode;
+    };
+
+    wp.jstree.NodeData.prototype.getEndpoint = function () {
+        return this.endpointNode;
+    };
+
+    wp.jstree.NodeData.prototype.getSiteId = function () {
+        return this.endpointNode.getSiteId();
+    };
+
+    wp.jstree.NodeData.prototype.fetch = function () {
+        return this.endpointNode.fetch(this.model.get('id'));
+    };
+
+    wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
+        return this.endpointNode.treeCreateNode(this.model.get('id'), menu_order || 0);
     }
 
-    function setLoading(loading, domNode) {
+
+    /**
+     * Toggle loading state for the treeNode spinner and other views.
+     * @param loading
+     * @param domNode
+     */
+    wp.jstree.ui.setLoading = function (loading, domNode) {
         if (loading) {
             if (domNode) {
                 domNode.addClass("jstree-loading").attr('aria-busy', true);
             }
 
-            $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin');
+            $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin').attr('aria-busy', true);
 
-            $('#network_browser_tree').block({
+            $('.network_browser_tree').block({
                 message: null,
                 overlayCSS: {
                     background: '#fff',
@@ -793,15 +477,61 @@
             }
             //App.siteInfoPane.unblock();
 
-            $('#network_browser_tree').unblock();
-            $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o');
+            $('.network_browser_tree').unblock();
+            $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o').attr('aria-busy', false);
         }
     }
 
-    function getNodeIcon(pageModel) {
-        var icon = 'glyph-icon fa ' + (pageModel.get('has_children') ? 'fa-folder' : 'fa-file');
+
+    /**
+     * Create a jsTree node from a wpApiBaseModel
+     * @param model wp.api.wpApiBaseModel
+     * @param endpointNode  wp.jstree.EndPointNodeData
+     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
+     */
+    wp.jstree.utils.postTypeToTreeNode = function (model, endpointNode) {
+        return {
+            text: wp.jstree.utils.getNodeTitle(model),
+            children: model.get('has_children'),
+            type: 'post-type-' + model.get('type'),
+            icon: wp.jstree.utils.getNodeIcon(model),
+            data: new wp.jstree.NodeData(model, endpointNode)
+        }
+    };
+
+    /**
+     * Gets a unique DOM id for the model
+     * @param model A node data object, either node, endpoint or site.
+     * @returns {string}
+     */
+    wp.jstree.utils.getNodeDomId = function (nodeData) {
+        nodeData = nodeData.data || nodeData;
+        return 'collection-' + nodeData.getSiteId() + '-item-' + nodeData.model.get('id');
+    };
+
+    /**
+     * Helper to grab the title from a model
+     * @param model
+     * @returns {*|boolean}
+     */
+    wp.jstree.utils.getNodeTitle = function (model) {
+        if (model.get('title').rendered !== undefined) {
+            return model.get('title').rendered
+        } else {
+            return model.get('title');
+        }
+    }
+
+    /**
+     * Helper to get the css classes for a models tree node.
+     * @param model
+     * @returns {string}
+     */
+    wp.jstree.utils.getNodeIcon = function (model) {
+        var icon = 'glyph-icon fa ' + (model.get('has_children') ? 'fa-folder' : 'fa-file');
         var iconColor = '';
-        switch (pageModel.get('migration_status')) {
+
+        switch (model.get('migration_status')) {
             case 'new':
                 iconColor = 'font-new';
                 break;
@@ -824,6 +554,353 @@
     }
 
 
+    $.jstree.defaults.core.themes.variant = "large";
+    $.jstree.defaults.core.themes.stripes = true;
+
+    wp.jstree.views.ApplicationView = Backbone.View.extend({
+        initialize: function () {
+            var self = this;
+
+            this.itemView = new wp.jstree.views.ItemView({
+                el: self.$el.find('#info-container')
+            });
+
+            this.siteView = new wp.jstree.views.SiteView({
+                    el: self.$el.find('#site-info-container')
+            });
+
+            this.$tree = self.$el.find('#network_browser_tree');
+
+            _.bindAll(this, 'switchNode');
+        },
+        switchNode: function (treeNode) {
+            this.siteView.switchNode(treeNode);
+            if (treeNode.type !== 'site') {
+                this.itemView.switchNode(treeNode)
+            }
+        },
+        render: function () {
+            var view = this;
+
+            //Show the loading animation on the network tree view while it's loading for the first time.
+            /*
+            this.$el.find('.network_browser_tree_container').block({
+                message: null,
+                overlayCSS: {
+                    background: '#000',
+                    opacity: 0.2
+                }
+            });
+            */
+
+            //wp.jstree.ui.setLoading(true);
+
+            this.$tree.jstree({
+                'types': {
+                    'default': {},
+                    'page': {
+                        'valid_children': ['page', 'post-type-page']
+                    },
+                    'post-type-page': {
+                        'valid_children': ['page', 'post-type-page']
+                    },
+                    'endpoint': {
+                        'icon': "glyph-icon fa fa-globe font-green",
+                        'valid_children': ['page']
+                    },
+                    'site': {
+                        'icon': "glyph-icon fa fa-globe font-green",
+                        'valid_children': ['endpoint', 'post-type-page', 'page', 'default']
+                    },
+                    'network': {
+                        'icon': "glyph-icon fa fa-globe font-green",
+                        'valid_children': ['site']
+                    }
+                },
+                "plugins": [
+                    "types", "contextmenu", "dnd",
+                ],
+                'dnd': {
+                    //Disallow dragging of sites since there isn't an order to the sites in a multisite.
+                    'is_draggable': function (nodes) {
+                        for (var i = 0; i < nodes.length; i++) {
+                            if (nodes[i].type === 'site') {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    }
+                },
+                'contextmenu': {
+                    'items': function (node) {
+                        var tmp = $.jstree.defaults.contextmenu.items();
+                        delete tmp.create.action;
+
+                        //If the id is root, it's the "Sites" top level node.  Set the context menu to allow creating a new site.
+                        if (node.id === 'root') {
+                            tmp.create.label = wp_iab_params.labels.new_site;
+                            tmp.create.separator_after = false;
+                            tmp.create.separator_before = false;
+                            tmp.create.action = function (data) {
+                                var treeInstance = $.jstree.reference(data.reference);
+                                var obj = inst.get_node(data.reference);
+
+                                treeInstance.create_node(obj, {
+                                        type: 'site',
+                                        text: wp_iab_params.labels.new_site,
+                                    },
+
+                                    'last', function (new_node) {
+                                        setTimeout(function () {
+                                            inst.edit(new_node);
+                                        }, 0);
+                                    });
+                            };
+
+                            //Remove other actions since create site is the only allowed operation.
+                            delete tmp.ccp;
+                            delete tmp.rename;
+                            delete tmp.remove;
+                        } else {
+                            delete tmp.ccp;
+                            //Context menu for any page.
+                            //Reset the create action to create a new tree node and then call the edit function.
+                            tmp.create.label = wp_iab_params.labels.newItem;
+                            tmp.create.action = function (data) {
+                                var treeInstance = $.jstree.reference(data.reference);
+                                var parentTreeNode = treeInstance.get_node(data.reference);
+
+                                parentTreeNode.data.treeCreateNode(parentTreeNode.data.model.get('id'), parentTreeNode.children.length).done(function (newTreeNode) {
+                                    treeInstance.create_node(parentTreeNode, newTreeNode,
+                                        'last', function (new_node) {
+                                            setTimeout(function () {
+                                                treeInstance.edit(new_node);
+                                            }, 0);
+                                        });
+                                });
+                            };
+
+                            //Reset the remove action to delete the page model.
+                            tmp.remove.action = function (data) {
+                                var inst = $.jstree.reference(data.reference)
+                                var nodeToDelete = inst.get_node(data.reference);
+                                var domNodeToDelete = inst.get_node(data.reference, true);
+
+                                wp.jstree.ui.setLoading(true, domNodeToDelete);
+                                nodeToDelete.data.model.destroy().done(function () {
+                                    setTimeout(function () {
+                                        inst.delete_node(nodeToDelete);
+                                        wp.jstree.ui.setLoading(false, domNodeToDelete);
+                                    }, 0);
+                                });
+
+                            }
+                        }
+
+                        return tmp;
+                    }
+                },
+                'core': {
+                    'multiple': false,
+                    'check_callback': function (operation, node, node_parent, node_position, more) {
+                        //TODO:  Allow dragging / copying between sites. Currently moving between sites is disabled.
+                        if (operation === 'move_node') {
+
+                            if (node_parent.type === 'site') {
+                                return false;
+                            }
+
+                            return node.data.getSiteId() === node_parent.data.getSiteId();
+                        }
+
+                        return true;
+                    },
+                    'data': function (node, cb) {
+                        var treeInstance = this;
+
+                        //This is the root node from jstree.
+                        if (node.id === '#') {
+
+                            treeInstance.networkNode = new wp.jstree.NetworkNode(1);
+                            treeInstance.networkNode.fetch().done(function (result) {
+                                cb.call(treeInstance, result);
+                            });
+
+                        } else {
+
+                            //node.data is either an instance of wp.jstree.SiteNodeData, wp.jstree.EndPointData, wp.jstree.NodeData
+                            node.data.fetch().done(function (results) {
+                                cb.call(treeInstance, results);
+                            });
+
+
+                        }
+                    }
+                }
+            })
+                .on('loading_node.jstree', function (e, treeNodeData) {
+                    if (treeNodeData.node.type === 'site') {
+                        //view.switchNode(treeNodeData.node);
+                    }
+                    wp.jstree.ui.setLoading(true);
+                })
+                .on('load_node.jstree', function (e, treeNodeData) {
+                    wp.jstree.ui.setLoading(false);
+                })
+                .on('loaded.jstree', function (e, treeNodeData) {
+                    wp.jstree.ui.setLoading(false);
+                })
+                .on('create_node.jstree', function (e, treeNodeData) {
+
+                    if (treeNodeData.node.type === 'site') {
+
+                        var siteModel = new view.collection.model({
+                            title: treeNodeData.node.text,
+                            domain: wp_iab_params.domain,
+                        });
+
+                        this.collection.add(siteModel);
+
+                        treeNodeData.node.data = {
+                            model: siteModel
+                        };
+
+                        treeNodeData.instance.deselect_all();
+                        treeNodeData.instance.select_node(treeNodeData.node)
+
+                    } else {
+                        treeNodeData.instance.deselect_all();
+                        treeNodeData.instance.select_node(treeNodeData.node)
+                    }
+
+                })
+                .on('rename_node.jstree', function (e, treeNodeData) {
+
+                    var domNode = $('#' + treeNodeData.node.id);
+
+                    if (treeNodeData.node.type === 'site') {
+                        treeNodeData.node.data.model.set('title', treeNodeData.node.text);
+                        treeNodeData.node.data.model.set('slug', ''); //empty slug so the server will generate it for us.
+
+                        wp.jstree.ui.setLoading(true, domNode);
+
+                        treeNodeData.node.data.model.save().done(function () {
+
+                            treeNodeData.node.children = true;
+                            treeNodeData.instance.refresh(treeNodeData.node);
+
+                            if (!treeNodeData.node.data.api) {
+                                wp.api.init({
+                                    apiRoot: treeNodeData.node.data.model.get('url') + '/wp-json/'
+                                }).done(function () {
+
+                                    treeNodeData.node.data.api = {
+                                        models: {},
+                                        collections: {}
+                                    };
+
+                                    treeNodeData.node.data.api.models = _.extend({}, this.models);
+                                    treeNodeData.node.data.api.collections = _.extend({}, this.collections);
+                                    treeNodeData.node.data.pages = new treeNodeData.node.data.api.collections.Pages();
+                                    wp.jstree.ui.setLoading(false, domNode);
+                                });
+                            }
+                        });
+
+                    } else {
+                        if (treeNodeData.node.data.model.get('title') !== treeNodeData.node.text) {
+                            treeNodeData.node.data.model.set('title', {
+                                raw: treeNodeData.node.text,
+                                rendered: treeNodeData.node.text
+                            });
+
+                            //TODO:  Add options for default new item status
+                            treeNodeData.node.data.model.set('status', 'publish');
+
+                            wp.jstree.ui.setLoading(true, domNode);
+                            treeNodeData.node.data.model.save().done(function () {
+                                view.switchNode(treeNodeData.node);
+                                wp.jstree.ui.setLoading(false, domNode);
+                            })
+
+                        }
+                    }
+                })
+                .on('move_node.jstree', function (e, treeNodeData) {
+
+                    //parent node is the new parent in jsTree.
+                    treeNodeData.instance.deselect_all();
+                    var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
+                    var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
+
+                    wp.jstree.ui.setLoading(true, parentDomNode);
+
+                    var parent_wp_id = 0;
+
+                    //if the parent is site, the wp parent id needs to remian 0
+                    if (parentNode.type !== 'site') {
+                        parent_wp_id = parentNode.data.model.get('id');
+                    }
+
+                    //Reset the icon to a folder, since we know for sure that it has children now.
+                    treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
+
+                    var activeCalls = parentNode.children.length - treeNodeData.position;
+
+                    for (var i = 0; i < parentNode.children.length; i++) {
+                        if (i >= treeNodeData.position) {
+                            //The child jsTree node object
+                            var child = treeNodeData.instance.get_node(parentNode.children[i]);
+
+                            //The child jsTree node dom object
+                            var childDomNode = treeNodeData.instance.get_node(parentNode.children[i], true);
+
+                            //Set the spinner on the individual item
+                            childDomNode.addClass('jstree-loading').attr('aria-busy', true);
+
+                            child.data.model.save({
+                                'parent': parent_wp_id,
+                                'menu_order': i,
+                            }, {
+                                context: childDomNode,
+                                success: function (model) {
+                                    // this is the jQuery dom node, passed in as the context parameter to the save options.
+                                    //Remove the spinner from this specific item.
+                                    this.removeClass('jstree-loading').attr('aria-busy', false);
+                                }
+                            }).done(function (result) {
+
+                                activeCalls--;
+                                if (activeCalls === 0) {
+                                    treeNodeData.instance.get_node(treeNodeData.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
+                                    wp.jstree.ui.setLoading(false);
+                                    view.switchNode(treeNodeData.node);
+                                }
+                            });
+
+                        }
+                    }
+                })
+                .on('changed.jstree', function (e, treeNodeData) {
+
+                    if (treeNodeData && treeNodeData.selected && treeNodeData.selected.length === 1 && treeNodeData.node.type !== 'network') {
+                        view.switchNode(treeNodeData.node);
+                    }
+
+
+                })
+                .on('ready.jstree', function (e) {
+                    wp.jstree.ui.setLoading(false);
+                    $('.network_browser_tree_container').unblock();
+                });
+        }
+    });
+
+
+    //Initialize the tree and hook up all the actions.
+
+
     $(document).ready(function () {
         function setHeight() {
             windowHeight = $(window).innerHeight();
@@ -835,6 +912,12 @@
         $(window).resize(function () {
             setHeight();
         });
+
+        var application = new wp.jstree.views.ApplicationView({
+            el: '#application_root'
+        });
+
+        application.render();
     });
 
-}(jQuery));
+}(jQuery, wp));

@@ -1,5 +1,5 @@
 <?php //TODO:  Clean up this markup as much as possible ?>
-<div class="wrap">
+<div class="wrap" id="application_root">
     <h1 class="page-title"><?php _e( 'Information Architecture Builder', 'wpiab' ); ?></h1>
     <div class="row">
         <div class="col-6">

@@ -121,7 +121,7 @@ class WP_IAB_Main {
 		$labels->migration_status_in_progress = __( 'In Progress', 'wpiab' );
 		$labels->migration_status_in_review   = __( 'In Review', 'wpiab' );
 		$labels->migration_status_complete    = __( 'Complete', 'wpiab' );
-		$labels->new_page                     = __( 'New Page', 'wpiab' );
+		$labels->newItem                     = __( 'New...', 'wpiab' );
 		$labels->new_site                     = __( 'New Site', 'wpiab' );
 
 		$labels->root_node_text = __( 'Sites', 'wpiab' );
