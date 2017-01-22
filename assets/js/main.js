@@ -634,17 +634,16 @@
             var view = this;
 
             //Show the loading animation on the network tree view while it's loading for the first time.
-            /*
-            this.$el.find('.network_browser_tree_container').block({
+
+            view.$el.find('.network_browser_tree_container').block({
                 message: null,
                 overlayCSS: {
                     background: '#000',
                     opacity: 0.2
                 }
             });
-            */
 
-            //wp.jstree.ui.setLoading(true);
+            wp.jstree.ui.setLoading(true);
 
             this.$tree.jstree({
                 'types': {
@@ -943,7 +942,7 @@
                 })
                 .on('ready.jstree', function (e) {
                     wp.jstree.ui.setLoading(false);
-                    $('.network_browser_tree_container').unblock();
+                    view.$el.find('.network_browser_tree_container').unblock();
                 });
         }
     });
