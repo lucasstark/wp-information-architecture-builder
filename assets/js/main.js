@@ -1,10 +1,366 @@
-(function ($, wp) {
-
+/*! 
+ * 
+ * Copyright (c) 2017;
+ * Licensed GPLv2+
+ */
+;(function($, wp){
 
     wp.jstree = wp.jstree || {};
     wp.jstree.utils = wp.jstree.utils || {};
     wp.jstree.ui = wp.jstree.ui || {};
     wp.jstree.views = wp.jstree.views || {};
+
+
+})(jQuery, wp);
+;(function($, wp){
+    /**
+     * Create a jsTree node from a wpApiBaseModel
+     * @param model wp.api.wpApiBaseModel
+     * @param endpointNode  wp.jstree.EndPointNodeData
+     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
+     */
+    wp.jstree.utils.postTypeToTreeNode = function (model, endpointNode) {
+        return {
+            text: wp.jstree.utils.getNodeTitle(model),
+            children: model.get('has_children'),
+            type: 'post-type-' + model.get('type'),
+            icon: wp.jstree.utils.getNodeIcon(model),
+            data: new wp.jstree.NodeData(model, endpointNode)
+        }
+    };
+
+    /**
+     * Gets a unique DOM id for the model
+     * @param model A node data object, either node, endpoint or site.
+     * @returns {string}
+     */
+    wp.jstree.utils.getNodeDomId = function (nodeData) {
+        nodeData = nodeData.data || nodeData;
+        return 'collection-' + nodeData.getSiteId() + '-item-' + nodeData.model.get('id');
+    };
+
+    /**
+     * Helper to grab the title from a model
+     * @param model
+     * @returns {*|boolean}
+     */
+    wp.jstree.utils.getNodeTitle = function (model) {
+        if (model.get('title').rendered !== undefined) {
+            return model.get('title').rendered
+        } else {
+            return model.get('title');
+        }
+    }
+
+    /**
+     * Helper to get the css classes for a models tree node.
+     * @param model
+     * @returns {string}
+     */
+    wp.jstree.utils.getNodeIcon = function (model) {
+        var icon = 'glyph-icon fa ' + (model.get('has_children') ? 'fa-folder' : 'fa-file');
+        var iconColor = '';
+
+        switch (model.get('migration_status')) {
+            case 'new':
+                iconColor = 'font-new';
+                break;
+            case 'in_progress' :
+                iconColor = 'font-in-progress';
+                break;
+            case 'in_review' :
+                iconColor = 'font-in-review';
+                break;
+            case 'complete' :
+                iconColor = 'font-complete';
+                break;
+            default :
+                iconColor = 'font-new';
+                break;
+        }
+
+        return icon + ' ' + iconColor;
+
+    }
+}(jQuery, wp))
+;(function ($, wp) {
+
+    //TODO:  Move this into the main AppView
+
+    /**
+     * Toggle loading state for the treeNode spinner and other views.
+     * @param loading
+     * @param domNode
+     */
+    wp.jstree.ui.setLoading = function (loading, domNode) {
+        if (loading) {
+            if (domNode) {
+                domNode.addClass("jstree-loading").attr('aria-busy', true);
+            }
+
+            $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin').attr('aria-busy', true);
+
+            $('.network_browser_tree').block({
+                message: null,
+                overlayCSS: {
+                    background: '#fff',
+                    opacity: 0.6
+                }
+            });
+
+            //App.siteInfoPane.block();
+
+        } else {
+            if (domNode) {
+                domNode.removeClass("jstree-loading").attr('aria-busy', false);
+            }
+            //App.siteInfoPane.unblock();
+
+            $('.network_browser_tree').unblock();
+            $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o').attr('aria-busy', false);
+        }
+    }
+
+})(jQuery, wp)
+;(function($, wp) {
+
+    /**
+     * Data object for individual items in the jsTree.
+     * @param model
+     * @param endpointNode
+     * @constructor
+     */
+    wp.jstree.NodeData = function (model, endpointNode) {
+        this.model = model;
+        this.endpointNode = endpointNode;
+    };
+
+    wp.jstree.NodeData.prototype.getEndpoint = function () {
+        return this.endpointNode;
+    };
+
+    wp.jstree.NodeData.prototype.getSiteId = function () {
+        return this.endpointNode.getSiteId();
+    };
+
+    /**
+     * Delegates to the endpoint fetch method.
+     */
+    wp.jstree.NodeData.prototype.fetch = function () {
+        return this.endpointNode.fetch(this.model.get('id'));
+    };
+
+    /**
+     * Delegates to the endpoint treeCreateNode
+     * @param menu_order
+     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
+     */
+    wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
+        return this.endpointNode.treeCreateNode(this.model.get('id'), menu_order || 0);
+    }
+
+})(jQuery, wp);
+;(function($, wp) {
+
+
+
+    wp.jstree.EndPointNode = function (collection, siteNode) {
+        this.siteNode = siteNode;
+        this.collection = collection;
+    };
+
+    wp.jstree.EndPointNode.prototype.getEndpoint = function () {
+        return this;
+    };
+
+    wp.jstree.EndPointNode.prototype.getSiteId = function () {
+        return this.siteNode.getSiteId();
+    };
+
+    wp.jstree.EndPointNode.prototype.fetch = function (parent) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var queryData = {
+            'orderby': 'menu_order',
+            'order': 'asc',
+            'parent': parent || 0,
+            'per_page': 100,
+        }
+
+        this.collection.fetch({
+            merge: true, silent: true, add: true, remove: false,
+            data: queryData
+        }).done(function (items) {
+
+            if (self.collection.hasMore()) {
+                //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
+                alert('This site has more than 100 children at the root.   Consider moving pages into smaller sections.');
+            }
+
+            var results = items.map(function (post) {
+                var childModel = self.collection.get(post.id);
+                return wp.jstree.utils.postTypeToTreeNode(childModel, self);
+            });
+
+            deferred.resolveWith(self, [results]);
+        });
+
+        return promise;
+    };
+
+    /**
+     * Creates a new jsTree node object and sets a new wp.jstree.NodeData for use as the data property
+     * Note:    Creates and adds a new model to the collection if model arg is empty is empty.
+     *
+     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
+     */
+    wp.jstree.EndPointNode.prototype.treeCreateNode = function (parent, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+
+        var model = self.collection.create({
+                title: 'New Page',
+                parent: parent || 0,
+                menu_order: menu_order || 0,
+                status: 'draft',
+                migration_notes: '',
+                migration_old_url: '',
+                migration_content_status: '',
+                migration_status: 'new',
+            },
+            {
+                wait: true,
+                success: function (model) {
+                    var treeNode = wp.jstree.utils.postTypeToTreeNode(model, self)
+                    deferred.resolveWith(self, [treeNode]);
+                }
+            }
+        );
+
+
+        return promise;
+    }
+
+})(jQuery, wp);
+;(function ($, wp) {
+
+    /**
+     * Represents the node for the whole WP network.
+     * @param networkId
+     * @constructor
+     */
+    wp.jstree.NetworkNode = function (networkId) {
+        this.networkId = networkId;
+    };
+
+    /**
+     * Fetch all of the sites and create SiteNodes.  Fetch resolves with jsTree nodes are as the root elements for the jsTree.
+     */
+    wp.jstree.NetworkNode.prototype.fetch = function () {
+
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        wp.api.init({
+            apiRoot: wp_iab_params.api_url
+        }).done(function (endpoint) {
+
+            var collections = endpoint.get('collections');
+            var sites = new collections.Sites();
+
+            sites.fetch().done(function (results) {
+
+                var childNodes = results.map(function (result) {
+                    var model = sites.get(result.id);
+                    return {
+                        id: 'network-' + self.networkId + '-site-' + model.get('id'),
+                        text: wp.jstree.utils.getNodeTitle(model),
+                        children: true,
+                        type: 'site',
+                        data: new wp.jstree.SiteNode(model)
+                    }
+                });
+
+                var node = {
+                    id: 'root',
+                    type: 'network',
+                    text: wp_iab_params.root_node_text,
+                    children: childNodes,
+                    state: {
+                        'opened': true,
+                        'selected': false,
+                        'disabled': false
+                    },
+                }
+
+                deferred.resolveWith(self, [node]);
+            });
+        });
+
+        return promise;
+
+    };
+
+
+})(jQuery, wp);
+;(function($, wp) {
+
+    /**
+     * Initializes a wp.api endpoint for the specific URL
+     * @param wpApiSiteUrl The URL to the site's api root
+     * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
+     * @constructor
+     */
+    wp.jstree.SiteNode = function (model) {
+        this.model = model;
+        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
+        this.endpoints = {};
+    };
+
+    wp.jstree.SiteNode.prototype.getEndpoint = function (endPointName) {
+        return this.endpoints[endPointName || 'Pages'];
+    };
+
+
+    wp.jstree.SiteNode.prototype.fetch = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        wp.api.init({
+            apiRoot: this.wpApiSiteUrl
+        }).done(function (endpoint) {
+
+            //Create just the Pages endpoint and return the root pages as the initial nodes.
+            //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
+            var collections = endpoint.get('collections');
+            self.endpoints['Pages'] = new wp.jstree.EndPointNode(new collections.Pages(), self);
+            self.endpoints['Pages'].fetch().done(function (results) {
+                deferred.resolveWith(self, [results]);
+            });
+        });
+
+        return promise;
+
+    };
+
+    wp.jstree.SiteNode.prototype.getSiteId = function () {
+        return this.model.get('id');
+    };
+
+    wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
+        //Delegate back down to the Pages endpoint node data object.
+        //If we wanted to load more than just Pages for the site this needs to be updated.
+        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
+    }
+
+})(jQuery, wp);
+;(function($, wp){
 
     /**
      * The view for each page.  Has the title and other fields.
@@ -132,6 +488,9 @@
         }
     });
 
+
+})(jQuery, wp);
+;(function($, wp){
     //Contains the chart for the site information.
     wp.jstree.views.SiteView = Backbone.View.extend({
         //Template is in views/index.php
@@ -242,318 +601,10 @@
             this.model.set('migration_status_' + pageModel.get('migration_status'), count - 1);
         }
     });
-
-
-    wp.jstree.NetworkNode = function (networkId) {
-        this.networkId = networkId;
-    };
-
-    wp.jstree.NetworkNode.prototype.fetch = function () {
-
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-        wp.api.init({
-            apiRoot: wp_iab_params.api_url
-        }).done(function (endpoint) {
-
-            var collections = endpoint.get('collections');
-            var sites = new collections.Sites();
-
-            sites.fetch().done(function (results) {
-
-                var childNodes = results.map(function (result) {
-                    var model = sites.get(result.id);
-                    return {
-                        id: 'network-' + self.networkId + '-site-' + model.get('id'),
-                        text: wp.jstree.utils.getNodeTitle(model),
-                        children: true,
-                        type: 'site',
-                        data: new wp.jstree.SiteNodeData(model)
-                    }
-                });
-
-                var node = {
-                    id: 'root',
-                    type: 'network',
-                    text: wp_iab_params.root_node_text,
-                    children: childNodes,
-                    state: {
-                        'opened': true,
-                        'selected': false,
-                        'disabled': false
-                    },
-                }
-
-                deferred.resolveWith(self, [node]);
-            });
-        });
-
-        return promise;
-
-    };
-
-
-    /**
-     * Initializes a wp.api endpoint for the specific URL
-     * @param wpApiSiteUrl The URL to the site's api root
-     * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
-     * @constructor
-     */
-    wp.jstree.SiteNodeData = function (model) {
-        this.model = model;
-        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
-        this.endpoints = {};
-    };
-
-    wp.jstree.SiteNodeData.prototype.getEndpoint = function (endPointName) {
-        return this.endpoints[endPointName || 'Pages'];
-    };
-
-    wp.jstree.SiteNodeData.prototype.fetch = function () {
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-        wp.api.init({
-            apiRoot: this.wpApiSiteUrl
-        }).done(function (endpoint) {
-
-            //Create just the Pages endpoint and return the root pages as the initial nodes.
-            //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
-            var collections = endpoint.get('collections');
-            self.endpoints['Pages'] = new wp.jstree.EndPointNodeData(new collections.Pages(), self);
-            self.endpoints['Pages'].fetch().done(function (results) {
-                deferred.resolveWith(self, [results]);
-            });
-        });
-
-        return promise;
-
-    };
-
-    wp.jstree.SiteNodeData.prototype.getSiteId = function () {
-        return this.model.get('id');
-    };
-
-    wp.jstree.SiteNodeData.prototype.treeCreateNode = function (menu_order) {
-        //Delegate back down to the Pages endpoint node data object.
-        //If we wanted to load more than just Pages for the site this needs to be updated.
-        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
-    }
-
-
-    wp.jstree.EndPointNodeData = function (collection, siteNode) {
-        this.siteNode = siteNode;
-        this.collection = collection;
-    };
-
-    wp.jstree.EndPointNodeData.prototype.getEndpoint = function () {
-        return this;
-    };
-
-    wp.jstree.EndPointNodeData.prototype.getSiteId = function () {
-        return this.siteNode.getSiteId();
-    };
-
-    wp.jstree.EndPointNodeData.prototype.fetch = function (parent) {
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-        var queryData = {
-            'orderby': 'menu_order',
-            'order': 'asc',
-            'parent': parent || 0,
-            'per_page': 100,
-        }
-
-        this.collection.fetch({
-            merge: true, silent: true, add: true, remove: false,
-            data: queryData
-        }).done(function (items) {
-
-            if (self.collection.hasMore()) {
-                //TODO:  Determine a better method to handle this situation where there are more than 100 pages.
-                alert('This site has more than 100 children at the root.   Consider moving pages into smaller sections.');
-            }
-
-            var results = items.map(function (post) {
-                var childModel = self.collection.get(post.id);
-                return wp.jstree.utils.postTypeToTreeNode(childModel, self);
-            });
-
-            deferred.resolveWith(self, [results]);
-        });
-
-        return promise;
-    };
-
-    /**
-     * Creates a new jsTree node object and sets a new wp.jstree.NodeData for use as the data property
-     * Note:    Creates and adds a new model to the collection if model arg is empty is empty.
-     *
-     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
-     */
-    wp.jstree.EndPointNodeData.prototype.treeCreateNode = function (parent, menu_order) {
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-
-        var model = self.collection.create({
-                title: 'New Page',
-                parent: parent || 0,
-                menu_order: menu_order || 0,
-                status: 'draft',
-                migration_notes: '',
-                migration_old_url: '',
-                migration_content_status: '',
-                migration_status: 'new',
-            },
-            {
-                wait: true,
-                success: function (model) {
-                    var treeNode = wp.jstree.utils.postTypeToTreeNode(model, self)
-                    deferred.resolveWith(self, [treeNode]);
-                }
-            }
-        );
-
-
-        return promise;
-    }
-
-
-    wp.jstree.NodeData = function (model, endpointNode) {
-        this.model = model;
-        this.endpointNode = endpointNode;
-    };
-
-    wp.jstree.NodeData.prototype.getEndpoint = function () {
-        return this.endpointNode;
-    };
-
-    wp.jstree.NodeData.prototype.getSiteId = function () {
-        return this.endpointNode.getSiteId();
-    };
-
-    wp.jstree.NodeData.prototype.fetch = function () {
-        return this.endpointNode.fetch(this.model.get('id'));
-    };
-
-    wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
-        return this.endpointNode.treeCreateNode(this.model.get('id'), menu_order || 0);
-    }
-
-
-    /**
-     * Toggle loading state for the treeNode spinner and other views.
-     * @param loading
-     * @param domNode
-     */
-    wp.jstree.ui.setLoading = function (loading, domNode) {
-        if (loading) {
-            if (domNode) {
-                domNode.addClass("jstree-loading").attr('aria-busy', true);
-            }
-
-            $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin').attr('aria-busy', true);
-
-            $('.network_browser_tree').block({
-                message: null,
-                overlayCSS: {
-                    background: '#fff',
-                    opacity: 0.6
-                }
-            });
-
-            //App.siteInfoPane.block();
-
-        } else {
-            if (domNode) {
-                domNode.removeClass("jstree-loading").attr('aria-busy', false);
-            }
-            //App.siteInfoPane.unblock();
-
-            $('.network_browser_tree').unblock();
-            $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o').attr('aria-busy', false);
-        }
-    }
-
-
-    /**
-     * Create a jsTree node from a wpApiBaseModel
-     * @param model wp.api.wpApiBaseModel
-     * @param endpointNode  wp.jstree.EndPointNodeData
-     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
-     */
-    wp.jstree.utils.postTypeToTreeNode = function (model, endpointNode) {
-        return {
-            text: wp.jstree.utils.getNodeTitle(model),
-            children: model.get('has_children'),
-            type: 'post-type-' + model.get('type'),
-            icon: wp.jstree.utils.getNodeIcon(model),
-            data: new wp.jstree.NodeData(model, endpointNode)
-        }
-    };
-
-    /**
-     * Gets a unique DOM id for the model
-     * @param model A node data object, either node, endpoint or site.
-     * @returns {string}
-     */
-    wp.jstree.utils.getNodeDomId = function (nodeData) {
-        nodeData = nodeData.data || nodeData;
-        return 'collection-' + nodeData.getSiteId() + '-item-' + nodeData.model.get('id');
-    };
-
-    /**
-     * Helper to grab the title from a model
-     * @param model
-     * @returns {*|boolean}
-     */
-    wp.jstree.utils.getNodeTitle = function (model) {
-        if (model.get('title').rendered !== undefined) {
-            return model.get('title').rendered
-        } else {
-            return model.get('title');
-        }
-    }
-
-    /**
-     * Helper to get the css classes for a models tree node.
-     * @param model
-     * @returns {string}
-     */
-    wp.jstree.utils.getNodeIcon = function (model) {
-        var icon = 'glyph-icon fa ' + (model.get('has_children') ? 'fa-folder' : 'fa-file');
-        var iconColor = '';
-
-        switch (model.get('migration_status')) {
-            case 'new':
-                iconColor = 'font-new';
-                break;
-            case 'in_progress' :
-                iconColor = 'font-in-progress';
-                break;
-            case 'in_review' :
-                iconColor = 'font-in-review';
-                break;
-            case 'complete' :
-                iconColor = 'font-complete';
-                break;
-            default :
-                iconColor = 'font-new';
-                break;
-        }
-
-        return icon + ' ' + iconColor;
-
-    }
-
-
+    
+})(jQuery, wp);
+(function ($, wp) {
+    //Main Application Screen
     $.jstree.defaults.core.themes.variant = "large";
     $.jstree.defaults.core.themes.stripes = true;
 
