@@ -152,7 +152,7 @@
                         //TODO:  Allow dragging / copying between sites. Currently moving between sites is disabled.
                         if (operation === 'move_node') {
 
-                            if (node_parent.type === 'site') {
+                            if (node_parent.type === 'root') {
                                 return false;
                             }
 
