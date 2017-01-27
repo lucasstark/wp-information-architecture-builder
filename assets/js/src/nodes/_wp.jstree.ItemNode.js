@@ -6,33 +6,33 @@
      * @param endpointNode
      * @constructor
      */
-    wp.jstree.NodeData = function (model, endpointNode) {
+    wp.jstree.NodeData = function (model, api) {
         this.model = model;
-        this.endpointNode = endpointNode;
+        this.api = api;
     };
 
-    wp.jstree.NodeData.prototype.getEndpoint = function () {
-        return this.endpointNode;
-    };
+    wp.jstree.NodeData.prototype.getApi = function(){
+        return this.api;
+    }
 
     wp.jstree.NodeData.prototype.getSiteId = function () {
-        return this.endpointNode.getSiteId();
+        return this.api.model.get('id')
     };
 
     /**
      * Delegates to the endpoint fetch method.
      */
     wp.jstree.NodeData.prototype.fetch = function () {
-        return this.endpointNode.fetch(this.model.get('id'));
+        return this.api.fetch(this.model.get('id'));
     };
 
     /**
-     * Delegates to the endpoint treeCreateNode
+     * Delegates to the api treeCreateNode
      * @param menu_order
      * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
      */
     wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
-        return this.endpointNode.treeCreateNode(this.model.get('id'), menu_order || 0);
+        return this.api.treeCreateNode(this.model.get('id'), menu_order || 0);
     }
 
 })(jQuery, wp);

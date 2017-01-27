@@ -49,8 +49,8 @@
         updateModel: function () {
             var updateRequired = false;
 
-            var endpoint = this.treeNode.data.getEndpoint();
-            var siteModel = endpoint.siteNode.model;
+            var api = this.treeNode.data.getApi();//get the SiteNode ( the api ) attached to the treeNode.
+            var siteModel = api.model;//The model for the site ( api ) itself, comes from the Sites() collection.
 
             var migration_status_previous = this.model.get('migration_status');
 

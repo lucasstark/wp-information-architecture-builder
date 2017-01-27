@@ -23,9 +23,8 @@ module.exports = {
             'assets/js/src/_wp.jstree.utils.js',
             'assets/js/src/_wp.jstree.ui.js',
             'assets/js/src/nodes/_wp.jstree.ItemNode.js',
-            'assets/js/src/nodes/_wp.jstree.EndpointNode.js',
-            'assets/js/src/nodes/_wp.jstree.NetworkNode.js',
             'assets/js/src/nodes/_wp.jstree.SiteNode.js',
+            'assets/js/src/nodes/_wp.jstree.NetworkNode.js',
 			'assets/js/src/views/_wp.jstree.views.ItemView.js',
             'assets/js/src/views/_wp.jstree.views.SiteView.js',
 			'assets/js/src/main.js'

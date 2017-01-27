@@ -152,11 +152,11 @@
                         //TODO:  Allow dragging / copying between sites. Currently moving between sites is disabled.
                         if (operation === 'move_node') {
 
-                            if (node_parent.type === 'root') {
+                            if (node.type === 'root') {
                                 return false;
                             }
 
-                            return node.data.getSiteId() === node_parent.data.getSiteId();
+                            return true;
                         }
 
                         return true;
@@ -279,6 +279,9 @@
                     var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
                     var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
 
+                    var currentNode = treeNodeData.node;
+
+
                     wp.jstree.ui.setLoading(true, parentDomNode);
 
                     var parent_wp_id = 0;
@@ -288,11 +291,50 @@
                         parent_wp_id = parentNode.data.model.get('id');
                     }
 
+                    if ( parentNode.data.getSiteId() !== currentNode.data.getSiteId() ) {
+                        parentNode.data.getApi().importItem( currentNode.data ).done( function( model ) {
+
+                            var activeCalls = parentNode.children.length - treeNodeData.position;
+                            for (var i = 0; i < parentNode.children.length; i++) {
+                                if (i >= treeNodeData.position) {
+                                    //The child jsTree node object
+                                    var child = treeNodeData.instance.get_node(parentNode.children[i]);
+
+                                    //The child jsTree node dom object
+                                    var childDomNode = treeNodeData.instance.get_node(parentNode.children[i], true);
+
+                                    //Set the spinner on the individual item
+                                    childDomNode.addClass('jstree-loading').attr('aria-busy', true);
+
+                                    child.data.model.save({
+                                        'parent': parent_wp_id,
+                                        'menu_order': i,
+                                    }, {
+                                        context: childDomNode,
+                                        success: function (model) {
+                                            // this is the jQuery dom node, passed in as the context parameter to the save options.
+                                            //Remove the spinner from this specific item.
+                                            this.removeClass('jstree-loading').attr('aria-busy', false);
+                                        }
+                                    }).done(function (result) {
+
+                                        activeCalls--;
+                                        if (activeCalls === 0) {
+                                            treeNodeData.instance.get_node(treeNodeData.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
+                                            wp.jstree.ui.setLoading(false);
+                                            view.switchNode(treeNodeData.node);
+                                        }
+                                    });
+
+                                }
+                            }
+                        });
+                    }
+
                     //Reset the icon to a folder, since we know for sure that it has children now.
                     treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
 
                     var activeCalls = parentNode.children.length - treeNodeData.position;
-
                     for (var i = 0; i < parentNode.children.length; i++) {
                         if (i >= treeNodeData.position) {
                             //The child jsTree node object

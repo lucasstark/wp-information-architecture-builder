@@ -16,16 +16,16 @@
     /**
      * Create a jsTree node from a wpApiBaseModel
      * @param model wp.api.wpApiBaseModel
-     * @param endpointNode  wp.jstree.EndPointNodeData
+     * @param api  wp.jstree.SiteNodeData
      * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
      */
-    wp.jstree.utils.postTypeToTreeNode = function (model, endpointNode) {
+    wp.jstree.utils.postTypeToTreeNode = function (model, api) {
         return {
             text: wp.jstree.utils.getNodeTitle(model),
             children: model.get('has_children'),
             type: 'post-type-' + model.get('type'),
             icon: wp.jstree.utils.getNodeIcon(model),
-            data: new wp.jstree.NodeData(model, endpointNode)
+            data: new wp.jstree.NodeData(model, api)
         }
     };
 
@@ -130,54 +130,84 @@
      * @param endpointNode
      * @constructor
      */
-    wp.jstree.NodeData = function (model, endpointNode) {
+    wp.jstree.NodeData = function (model, api) {
         this.model = model;
-        this.endpointNode = endpointNode;
+        this.api = api;
     };
 
-    wp.jstree.NodeData.prototype.getEndpoint = function () {
-        return this.endpointNode;
-    };
+    wp.jstree.NodeData.prototype.getApi = function(){
+        return this.api;
+    }
 
     wp.jstree.NodeData.prototype.getSiteId = function () {
-        return this.endpointNode.getSiteId();
+        return this.api.model.get('id')
     };
 
     /**
      * Delegates to the endpoint fetch method.
      */
     wp.jstree.NodeData.prototype.fetch = function () {
-        return this.endpointNode.fetch(this.model.get('id'));
+        return this.api.fetch(this.model.get('id'));
     };
 
     /**
-     * Delegates to the endpoint treeCreateNode
+     * Delegates to the api treeCreateNode
      * @param menu_order
      * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
      */
     wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
-        return this.endpointNode.treeCreateNode(this.model.get('id'), menu_order || 0);
+        return this.api.treeCreateNode(this.model.get('id'), menu_order || 0);
     }
 
 })(jQuery, wp);
-;(function($, wp) {
+;(function ($, wp) {
 
-
-
-    wp.jstree.EndPointNode = function (collection, siteNode) {
-        this.siteNode = siteNode;
-        this.collection = collection;
+    /**
+     * Initializes a wp.api endpoint for the specific URL
+     * @param wpApiSiteUrl The URL to the site's api root
+     * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
+     * @constructor
+     */
+    wp.jstree.SiteNode = function (model) {
+        this.model = model;
+        this.collection = null;
+        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
     };
 
-    wp.jstree.EndPointNode.prototype.getEndpoint = function () {
+    wp.jstree.SiteNode.prototype.getApi = function(){
         return this;
     };
 
-    wp.jstree.EndPointNode.prototype.getSiteId = function () {
-        return this.siteNode.getSiteId();
+    wp.jstree.SiteNode.prototype.fetch = function () {
+        if (this.collection === null) {
+            return this._initializeAndFetch();
+        } else {
+            return this._fetch();
+        }
+    }
+
+    wp.jstree.SiteNode.prototype._initializeAndFetch = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        wp.api.init({
+            apiRoot: this.wpApiSiteUrl
+        }).done(function (endpoint) {
+
+            //Create just the Pages endpoint and return the root pages as the initial nodes.
+            //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
+            var collections = endpoint.get('collections');
+            self.collection = new collections.Pages();
+            self._fetch(0).done(function (results) {
+                deferred.resolveWith(self, [results]);
+            });
+        });
+
+        return promise;
     };
 
-    wp.jstree.EndPointNode.prototype.fetch = function (parent) {
+    wp.jstree.SiteNode.prototype._fetch = function (parent) {
         var self = this;
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
@@ -210,40 +240,28 @@
         return promise;
     };
 
-    /**
-     * Creates a new jsTree node object and sets a new wp.jstree.NodeData for use as the data property
-     * Note:    Creates and adds a new model to the collection if model arg is empty is empty.
-     *
-     * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
-     */
-    wp.jstree.EndPointNode.prototype.treeCreateNode = function (parent, menu_order) {
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
+    wp.jstree.SiteNode.prototype.getSiteId = function () {
+        return this.model.get('id');
+    };
 
-
-        var model = self.collection.create({
-                title: 'New Page',
-                parent: parent || 0,
-                menu_order: menu_order || 0,
-                status: 'draft',
-                migration_notes: '',
-                migration_old_url: '',
-                migration_content_status: '',
-                migration_status: 'new',
-            },
-            {
-                wait: true,
-                success: function (model) {
-                    var treeNode = wp.jstree.utils.postTypeToTreeNode(model, self)
-                    deferred.resolveWith(self, [treeNode]);
-                }
-            }
-        );
-
-
-        return promise;
+    wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
+        //Delegate back down to the Pages endpoint node data object.
+        //If we wanted to load more than just Pages for the site this needs to be updated.
+        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
     }
+
+    wp.jstree.SiteNode.prototype.importItem = function( itemNode, menu_order ) {
+        var jsonData = itemNode.model.toJSON();
+        delete jsonData.id;
+        delete jsonData.site_id;
+
+        this.collection.create(jsonData, {
+            success : function() {
+                itemNode.model.destroy();
+            }
+        });
+    }
+
 
 })(jQuery, wp);
 ;(function ($, wp) {
@@ -308,58 +326,6 @@
 
 
 })(jQuery, wp);
-;(function($, wp) {
-
-    /**
-     * Initializes a wp.api endpoint for the specific URL
-     * @param wpApiSiteUrl The URL to the site's api root
-     * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
-     * @constructor
-     */
-    wp.jstree.SiteNode = function (model) {
-        this.model = model;
-        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
-        this.endpoints = {};
-    };
-
-    wp.jstree.SiteNode.prototype.getEndpoint = function (endPointName) {
-        return this.endpoints[endPointName || 'Pages'];
-    };
-
-
-    wp.jstree.SiteNode.prototype.fetch = function () {
-        var self = this;
-        var deferred = jQuery.Deferred();
-        var promise = deferred.promise();
-
-        wp.api.init({
-            apiRoot: this.wpApiSiteUrl
-        }).done(function (endpoint) {
-
-            //Create just the Pages endpoint and return the root pages as the initial nodes.
-            //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
-            var collections = endpoint.get('collections');
-            self.endpoints['Pages'] = new wp.jstree.EndPointNode(new collections.Pages(), self);
-            self.endpoints['Pages'].fetch().done(function (results) {
-                deferred.resolveWith(self, [results]);
-            });
-        });
-
-        return promise;
-
-    };
-
-    wp.jstree.SiteNode.prototype.getSiteId = function () {
-        return this.model.get('id');
-    };
-
-    wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
-        //Delegate back down to the Pages endpoint node data object.
-        //If we wanted to load more than just Pages for the site this needs to be updated.
-        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
-    }
-
-})(jQuery, wp);
 ;(function($, wp){
 
     /**
@@ -411,8 +377,8 @@
         updateModel: function () {
             var updateRequired = false;
 
-            var endpoint = this.treeNode.data.getEndpoint();
-            var siteModel = endpoint.siteNode.model;
+            var api = this.treeNode.data.getApi();//get the SiteNode ( the api ) attached to the treeNode.
+            var siteModel = api.model;//The model for the site ( api ) itself, comes from the Sites() collection.
 
             var migration_status_previous = this.model.get('migration_status');
 
@@ -499,8 +465,6 @@
             _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);
             this.$content = this.$el.find('.site-info-content').eq(0);
-            console.log(this.$el.html())
-
         },
         switchNode: function (treeNode) {
 
@@ -512,9 +476,9 @@
                 this.stopListening(this.collection);
             }
 
-            var endpoint = treeNode.data.getEndpoint();
-            this.model = endpoint.siteNode.model;
-            this.collection = endpoint.collection;
+            var api = treeNode.data.getApi();//get the SiteNode ( the api ) attached to the treeNode.
+            this.model = api.model;
+            this.collection = api.collection;
 
             this.listenTo(this.model, 'change', this.render);
             this.listenTo(this.collection, 'add', this.addPage);
@@ -757,11 +721,11 @@
                         //TODO:  Allow dragging / copying between sites. Currently moving between sites is disabled.
                         if (operation === 'move_node') {
 
-                            if (node_parent.type === 'root') {
+                            if (node.type === 'root') {
                                 return false;
                             }
 
-                            return node.data.getSiteId() === node_parent.data.getSiteId();
+                            return true;
                         }
 
                         return true;
@@ -884,6 +848,9 @@
                     var parentNode = treeNodeData.instance.get_node(treeNodeData.node.parent);
                     var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
 
+                    var currentNode = treeNodeData.node;
+
+
                     wp.jstree.ui.setLoading(true, parentDomNode);
 
                     var parent_wp_id = 0;
@@ -893,11 +860,50 @@
                         parent_wp_id = parentNode.data.model.get('id');
                     }
 
+                    if ( parentNode.data.getSiteId() !== currentNode.data.getSiteId() ) {
+                        parentNode.data.getApi().importItem( currentNode.data ).done( function( model ) {
+
+                            var activeCalls = parentNode.children.length - treeNodeData.position;
+                            for (var i = 0; i < parentNode.children.length; i++) {
+                                if (i >= treeNodeData.position) {
+                                    //The child jsTree node object
+                                    var child = treeNodeData.instance.get_node(parentNode.children[i]);
+
+                                    //The child jsTree node dom object
+                                    var childDomNode = treeNodeData.instance.get_node(parentNode.children[i], true);
+
+                                    //Set the spinner on the individual item
+                                    childDomNode.addClass('jstree-loading').attr('aria-busy', true);
+
+                                    child.data.model.save({
+                                        'parent': parent_wp_id,
+                                        'menu_order': i,
+                                    }, {
+                                        context: childDomNode,
+                                        success: function (model) {
+                                            // this is the jQuery dom node, passed in as the context parameter to the save options.
+                                            //Remove the spinner from this specific item.
+                                            this.removeClass('jstree-loading').attr('aria-busy', false);
+                                        }
+                                    }).done(function (result) {
+
+                                        activeCalls--;
+                                        if (activeCalls === 0) {
+                                            treeNodeData.instance.get_node(treeNodeData.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
+                                            wp.jstree.ui.setLoading(false);
+                                            view.switchNode(treeNodeData.node);
+                                        }
+                                    });
+
+                                }
+                            }
+                        });
+                    }
+
                     //Reset the icon to a folder, since we know for sure that it has children now.
                     treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
 
                     var activeCalls = parentNode.children.length - treeNodeData.position;
-
                     for (var i = 0; i < parentNode.children.length; i++) {
                         if (i >= treeNodeData.position) {
                             //The child jsTree node object

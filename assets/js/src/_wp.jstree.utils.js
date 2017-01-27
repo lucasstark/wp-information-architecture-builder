@@ -2,16 +2,16 @@
     /**
      * Create a jsTree node from a wpApiBaseModel
      * @param model wp.api.wpApiBaseModel
-     * @param endpointNode  wp.jstree.EndPointNodeData
+     * @param api  wp.jstree.SiteNodeData
      * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
      */
-    wp.jstree.utils.postTypeToTreeNode = function (model, endpointNode) {
+    wp.jstree.utils.postTypeToTreeNode = function (model, api) {
         return {
             text: wp.jstree.utils.getNodeTitle(model),
             children: model.get('has_children'),
             type: 'post-type-' + model.get('type'),
             icon: wp.jstree.utils.getNodeIcon(model),
-            data: new wp.jstree.NodeData(model, endpointNode)
+            data: new wp.jstree.NodeData(model, api)
         }
     };
 

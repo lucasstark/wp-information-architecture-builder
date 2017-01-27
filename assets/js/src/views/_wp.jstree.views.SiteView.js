@@ -7,8 +7,6 @@
             _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);
             this.$content = this.$el.find('.site-info-content').eq(0);
-            console.log(this.$el.html())
-
         },
         switchNode: function (treeNode) {
 
@@ -20,9 +18,9 @@
                 this.stopListening(this.collection);
             }
 
-            var endpoint = treeNode.data.getEndpoint();
-            this.model = endpoint.siteNode.model;
-            this.collection = endpoint.collection;
+            var api = treeNode.data.getApi();//get the SiteNode ( the api ) attached to the treeNode.
+            this.model = api.model;
+            this.collection = api.collection;
 
             this.listenTo(this.model, 'change', this.render);
             this.listenTo(this.collection, 'add', this.addPage);
