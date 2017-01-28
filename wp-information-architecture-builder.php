@@ -123,7 +123,6 @@ class WP_IAB_Main {
 		$labels->migration_status_complete    = __( 'Complete', 'wpiab' );
 		$labels->newItem                     = __( 'New...', 'wpiab' );
 		$labels->new_site                     = __( 'New Site', 'wpiab' );
-
 		$labels->root_node_text = __( 'Sites', 'wpiab' );
 
 		$current_site_id = BLOG_ID_CURRENT_SITE;

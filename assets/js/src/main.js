@@ -89,24 +89,39 @@
                             tmp.create.separator_before = false;
                             tmp.create.action = function (data) {
                                 var treeInstance = $.jstree.reference(data.reference);
-                                var obj = inst.get_node(data.reference);
+                                var networkNode = treeInstance.get_node(data.reference);
 
-                                treeInstance.create_node(obj, {
-                                        type: 'site',
-                                        text: wp_iab_params.labels.new_site,
-                                    },
 
-                                    'last', function (new_node) {
-                                        setTimeout(function () {
-                                            inst.edit(new_node);
-                                        }, 0);
-                                    });
+                                networkNode.data.treeCreateNode().done(function (newTreeNode) {
+                                    treeInstance.create_node(networkNode, newTreeNode,
+                                        'last', function (new_node) {
+                                            setTimeout(function () {
+                                                treeInstance.edit(new_node);
+                                            }, 0);
+                                        });
+                                });
                             };
 
                             //Remove other actions since create site is the only allowed operation.
                             delete tmp.ccp;
                             delete tmp.rename;
-                            delete tmp.remove;
+
+                            //Reset the remove action to delete the page model.
+                            tmp.remove.action = function (data) {
+                                var treeInstance = $.jstree.reference(data.reference)
+                                var nodeToDelete = treeInstance.get_node(data.reference);
+                                var domNodeToDelete = treeInstance.get_node(data.reference, true);
+
+                                wp.jstree.ui.setLoading(true, domNodeToDelete);
+                                nodeToDelete.data.model.destroy().done(function () {
+                                    setTimeout(function () {
+                                        treeInstance.delete_node(nodeToDelete);
+                                        wp.jstree.ui.setLoading(false, domNodeToDelete);
+                                    }, 0);
+                                });
+
+                            }
+
                         } else {
                             delete tmp.ccp;
                             //Context menu for any page.
@@ -200,17 +215,6 @@
 
                     if (treeNodeData.node.type === 'site') {
 
-                        var siteModel = new view.collection.model({
-                            title: treeNodeData.node.text,
-                            domain: wp_iab_params.domain,
-                        });
-
-                        this.collection.add(siteModel);
-
-                        treeNodeData.node.data = {
-                            model: siteModel
-                        };
-
                         treeNodeData.instance.deselect_all();
                         treeNodeData.instance.select_node(treeNodeData.node)
 
@@ -229,28 +233,8 @@
                         treeNodeData.node.data.model.set('slug', ''); //empty slug so the server will generate it for us.
 
                         wp.jstree.ui.setLoading(true, domNode);
-
                         treeNodeData.node.data.model.save().done(function () {
-
-                            treeNodeData.node.children = true;
                             treeNodeData.instance.refresh(treeNodeData.node);
-
-                            if (!treeNodeData.node.data.api) {
-                                wp.api.init({
-                                    apiRoot: treeNodeData.node.data.model.get('url') + '/wp-json/'
-                                }).done(function () {
-
-                                    treeNodeData.node.data.api = {
-                                        models: {},
-                                        collections: {}
-                                    };
-
-                                    treeNodeData.node.data.api.models = _.extend({}, this.models);
-                                    treeNodeData.node.data.api.collections = _.extend({}, this.collections);
-                                    treeNodeData.node.data.pages = new treeNodeData.node.data.api.collections.Pages();
-                                    wp.jstree.ui.setLoading(false, domNode);
-                                });
-                            }
                         });
 
                     } else {
@@ -292,6 +276,7 @@
                     }
 
                     if ( parentNode.data.getSiteId() !== currentNode.data.getSiteId() ) {
+                        //Moving items between sites.
                         parentNode.data.getApi().importItem( currentNode.data ).done( function( model ) {
 
                             var activeCalls = parentNode.children.length - treeNodeData.position;

@@ -454,7 +454,8 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		if ( isset( $request['title'] ) && ! empty( $request['title'] ) ) {
 			$prepared_data->title = $request['title'];
 		} else {
-			return new WP_Error( 'rest_invalid_title', __( 'Invalid title.' ), array( 'status' => 400 ) );
+			$prepared_data->title = uniqid(__('New Site ', 'wpiab'));
+			//return new WP_Error( 'rest_invalid_title', __( 'Invalid title.' ), array( 'status' => 400 ) );
 		}
 
 		if ( isset( $request['slug'] ) && empty( $request['slug'] ) ) {

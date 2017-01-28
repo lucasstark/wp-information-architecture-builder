@@ -6,15 +6,20 @@
      * @param model A wp.api.models.Site model, or a generic model with required title and url properties.
      * @constructor
      */
-    wp.jstree.SiteNode = function (model) {
+    wp.jstree.SiteNode = function (model, networkApi) {
+        this.networkApi = networkApi;
         this.model = model;
         this.collection = null;
         this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
     };
 
-    wp.jstree.SiteNode.prototype.getApi = function(){
+    wp.jstree.SiteNode.prototype.getApi = function () {
         return this;
     };
+
+    wp.jstree.SiteNode.prototype.getNetworkApi = function () {
+        return this.networkApi;
+    }
 
     wp.jstree.SiteNode.prototype.fetch = function () {
         if (this.collection === null) {
@@ -22,7 +27,7 @@
         } else {
             return this._fetch();
         }
-    }
+    };
 
     wp.jstree.SiteNode.prototype._initializeAndFetch = function () {
         var self = this;
@@ -82,19 +87,41 @@
         return this.model.get('id');
     };
 
-    wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
-        //Delegate back down to the Pages endpoint node data object.
-        //If we wanted to load more than just Pages for the site this needs to be updated.
-        return this.endpoints['Pages'].treeCreateNode(0, menu_order);
-    }
+    wp.jstree.SiteNode.prototype.treeCreateNode = function (parent, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
 
-    wp.jstree.SiteNode.prototype.importItem = function( itemNode, menu_order ) {
+
+        var model = self.collection.create({
+                title: 'New Page',
+                parent: parent || 0,
+                menu_order: menu_order || 0,
+                status: 'draft',
+                migration_notes: '',
+                migration_old_url: '',
+                migration_content_status: '',
+                migration_status: 'new',
+            },
+            {
+                wait: true,
+                success: function (model) {
+                    var treeNode = wp.jstree.utils.postTypeToTreeNode(model, self)
+                    deferred.resolveWith(self, [treeNode]);
+                }
+            }
+        );
+
+        return promise;
+    };
+
+    wp.jstree.SiteNode.prototype.importItem = function (itemNode, menu_order) {
         var jsonData = itemNode.model.toJSON();
         delete jsonData.id;
         delete jsonData.site_id;
 
         this.collection.create(jsonData, {
-            success : function() {
+            success: function () {
                 itemNode.model.destroy();
             }
         });
