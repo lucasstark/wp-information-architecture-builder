@@ -5,5 +5,6 @@
     wp.jstree.ui = wp.jstree.ui || {};
     wp.jstree.views = wp.jstree.views || {};
 
+   // wp.jsTreeApi = wp.api;
 
 })(jQuery, wp);

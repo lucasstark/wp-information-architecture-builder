@@ -1,4 +1,4 @@
-;(function($, wp){
+;(function ($, wp) {
 
     /**
      * The view for each page.  Has the title and other fields.
@@ -19,25 +19,30 @@
         initialize: function (options) {
             this.$content = this.$el.find('#info-pane');
 
-            _.bindAll(this, 'onSave', 'onDelete', 'onCancel', 'updateModel', 'saveModel');
+            _.bindAll(this, 'onModelChange', 'onSave', 'onDelete', 'onCancel', 'updateModel', 'saveModel', 'switchNode');
         },
         empty: function () {
             this.$content.empty();
         },
         switchNode: function (treeNode) {
+            if (this.model) {
+                this.stopListening(this.model);
+            }
 
             this.model = treeNode.data.model;
+
+            this.listenTo(this.model, 'change', this.onModelChange);
+
             this.treeNode = treeNode;
             this.empty();
-
             this.$content.html(this.template(this.model.attributes));
-            this.$content.find('input.title').eq(0).focus(function () {
-                $(this).select()
-            });
+        },
+        onModelChange: function (model) {
+            this.$el.find('input.title').eq(0).val(model.get('title').rendered);
         },
         onSave: function (e) {
             e.preventDefault();
-            this.saveModel();
+            this.saveModel(e);
         },
         onDelete: function (e) {
             e.preventDefault();
@@ -46,7 +51,7 @@
             e.preventDefault();
         },
         //Updates the model properties but does not sync it with the server.
-        updateModel: function () {
+        updateModel: function (e) {
             var updateRequired = false;
 
             var api = this.treeNode.data.getApi();//get the SiteNode ( the api ) attached to the treeNode.
@@ -90,7 +95,7 @@
             return updateRequired;
         },
         //Save the model to the server, triggers the loading animations.
-        saveModel: function () {
+        saveModel: function (e) {
             var updateRequired = this.updateModel();
             if (updateRequired) {
                 var self = this;

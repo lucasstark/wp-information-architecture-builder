@@ -19,7 +19,7 @@
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        wp.api.init({
+        wp.jsTreeApi.init({
             apiRoot: wp_iab_params.api_url
         }).done(function (endpoint) {
 

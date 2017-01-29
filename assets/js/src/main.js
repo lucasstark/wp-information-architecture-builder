@@ -12,7 +12,7 @@
             });
 
             this.siteView = new wp.jstree.views.SiteView({
-                    el: self.$el.find('#site-info-container')
+                el: self.$el.find('#site-info-container')
             });
 
             this.$tree = self.$el.find('#network_browser_tree');
@@ -20,10 +20,10 @@
             _.bindAll(this, 'switchNode');
         },
         switchNode: function (treeNode) {
-            this.siteView.switchNode(treeNode);
-            if (treeNode.type !== 'site') {
-                this.itemView.switchNode(treeNode)
-            }
+            //this.siteView.switchNode(treeNode);
+            // if (treeNode.type !== 'site') {
+            // this.itemView.switchNode(treeNode)
+            //}
         },
         render: function () {
             var view = this;
@@ -131,7 +131,7 @@
                                 var treeInstance = $.jstree.reference(data.reference);
                                 var parentTreeNode = treeInstance.get_node(data.reference);
 
-                                parentTreeNode.data.treeCreateNode(parentTreeNode.data.model.get('id'), parentTreeNode.children.length).done(function (newTreeNode) {
+                                parentTreeNode.data.treeCreateNode(parentTreeNode.children.length).done(function (newTreeNode) {
                                     treeInstance.create_node(parentTreeNode, newTreeNode,
                                         'last', function (new_node) {
                                             setTimeout(function () {
@@ -238,6 +238,7 @@
                         });
 
                     } else {
+
                         if (treeNodeData.node.data.model.get('title') !== treeNodeData.node.text) {
                             treeNodeData.node.data.model.set('title', {
                                 raw: treeNodeData.node.text,
@@ -248,8 +249,8 @@
                             treeNodeData.node.data.model.set('status', 'publish');
 
                             wp.jstree.ui.setLoading(true, domNode);
+                            console.log('jstree.saving', treeNodeData.node.data.model);
                             treeNodeData.node.data.model.save().done(function () {
-                                view.switchNode(treeNodeData.node);
                                 wp.jstree.ui.setLoading(false, domNode);
                             })
 
@@ -273,51 +274,20 @@
                     //if the parent is site, the wp parent id needs to remian 0
                     if (parentNode.type !== 'site') {
                         parent_wp_id = parentNode.data.model.get('id');
+                        //Reset the icon to a folder, since we know for sure that it has children now.
+                        treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
                     }
 
-                    if ( parentNode.data.getSiteId() !== currentNode.data.getSiteId() ) {
+                    if (parentNode.data.getSiteId() !== currentNode.data.getSiteId()) {
                         //Moving items between sites.
-                        parentNode.data.getApi().importItem( currentNode.data ).done( function( model ) {
 
-                            var activeCalls = parentNode.children.length - treeNodeData.position;
-                            for (var i = 0; i < parentNode.children.length; i++) {
-                                if (i >= treeNodeData.position) {
-                                    //The child jsTree node object
-                                    var child = treeNodeData.instance.get_node(parentNode.children[i]);
-
-                                    //The child jsTree node dom object
-                                    var childDomNode = treeNodeData.instance.get_node(parentNode.children[i], true);
-
-                                    //Set the spinner on the individual item
-                                    childDomNode.addClass('jstree-loading').attr('aria-busy', true);
-
-                                    child.data.model.save({
-                                        'parent': parent_wp_id,
-                                        'menu_order': i,
-                                    }, {
-                                        context: childDomNode,
-                                        success: function (model) {
-                                            // this is the jQuery dom node, passed in as the context parameter to the save options.
-                                            //Remove the spinner from this specific item.
-                                            this.removeClass('jstree-loading').attr('aria-busy', false);
-                                        }
-                                    }).done(function (result) {
-
-                                        activeCalls--;
-                                        if (activeCalls === 0) {
-                                            treeNodeData.instance.get_node(treeNodeData.node.parent, true).removeClass("jstree-loading").attr('aria-busy', false);
-                                            wp.jstree.ui.setLoading(false);
-                                            view.switchNode(treeNodeData.node);
-                                        }
-                                    });
-
-                                }
-                            }
+                        parentNode.data.getApi().importItem(currentNode.data, parent_wp_id).then(function () {
+                            parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         });
+
+                        return;
                     }
 
-                    //Reset the icon to a folder, since we know for sure that it has children now.
-                    treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
 
                     var activeCalls = parentNode.children.length - treeNodeData.position;
                     for (var i = 0; i < parentNode.children.length; i++) {
@@ -358,6 +328,17 @@
 
                     if (treeNodeData && treeNodeData.selected && treeNodeData.selected.length === 1 && treeNodeData.node.type !== 'network') {
                         view.switchNode(treeNodeData.node);
+
+                        if (treeNodeData.node.type !== 'site'){
+
+                            //treeNodeData.node.data.getApi().expandChildren(treeNodeData.instance, treeNodeData.node).done(
+                              //  function(results) {
+                                //    console.log(results);
+                                //}
+                            //)
+
+                        }
+
                     }
 
 

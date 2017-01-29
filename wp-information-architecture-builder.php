@@ -93,16 +93,21 @@ class WP_IAB_Main {
 	 */
 	public function on_admin_enqueue_scripts() {
 		//Enqueue our scripts and stylesheets, and localize some labels for use in scripts.
-		wp_enqueue_script( 'wp-api' );
+
 		wp_enqueue_script( 'wpiab-jquery-flot', $this->plugin_url() . '/assets/js/lib/flot/jquery.flot.js', array( 'jquery' ), $this->assets_version, true );
 		wp_enqueue_script( 'wpiab-jquery-flot-pie', $this->plugin_url() . '/assets/js/lib/flot/jquery.flot.pie.js', array( 'jquery' ), $this->assets_version, true );
 
 		wp_enqueue_script( 'wpiab-blockui', $this->plugin_url() . '/assets/js/lib/jquery.blockui.js', array( 'jquery' ), $this->assets_version, true );
+
+
 		wp_enqueue_script( 'wpiab-jstree', $this->plugin_url() . '/assets/js/lib/jstree.js', array( 'jquery' ), $this->assets_version, true );
+
+		//We enqueue our own version of the client api.  This custom version includes patches that are not in 4.7
+		wp_enqueue_script( 'wpiab-wp-api', $this->plugin_url() . '/assets/js/lib/wp-api.js', array( 'jquery', 'wp-api' ), $this->assets_version, true );
 
 		wp_enqueue_script( 'wpiab-main', $this->plugin_url() . '/assets/js/main.js', array(
 			'jquery',
-			'wp-api',
+			'wpiab-wp-api',
 			'wpiab-blockui',
 			'wpiab-jstree',
 			'wpiab-jquery-flot',

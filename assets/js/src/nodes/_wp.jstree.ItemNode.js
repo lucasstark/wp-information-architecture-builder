@@ -32,7 +32,11 @@
      * @returns {{id: *, text: (*|boolean), children, type: string, icon: (string|*), data: NodeData}}
      */
     wp.jstree.NodeData.prototype.treeCreateNode = function (menu_order) {
-        return this.api.treeCreateNode(this.model.get('id'), menu_order || 0);
+        return this.api._treeCreateNode(this.model.get('id'), menu_order || 0);
+    }
+
+    wp.jstree.NodeData.prototype.importItem = function (itemNode, menu_order) {
+        return this.api._importItem(itemNode, this.model.get('id'), menu_order);
     }
 
 })(jQuery, wp);
