@@ -179,6 +179,9 @@
         this.collection = null;
         this.collections = {};
         this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
+
+        this._modelsToDelete = new Backbone.Collection();
+
     };
 
     wp.jstree.SiteNode.prototype.getApi = function () {
@@ -296,10 +299,31 @@
     };
 
     wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, itemNode, destinationParentId, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
 
-        return this._importItem(itemNode, destinationParentId, menu_order).then(function () {
+        var sourceSiteApi = itemNode.data.getApi();
+        sourceSiteApi._modelsToDelete = [
+            itemNode.data.model
+        ];
+
+        this._importItem(itemNode, destinationParentId, menu_order).then(function () {
             treeInstance.refresh_node(itemNode);
+
+            var promises = [];
+            for (var i = 0; i < sourceSiteApi._modelsToDelete.length; i++) {
+                promises.push(sourceSiteApi._modelsToDelete[i].destroy());
+            }
+
+            $.when.apply($, promises).then(function () {
+                delete sourceSiteApi._modelsToDelete;
+                deferred.resolveWith(self);
+            });
+
         });
+
+        return promise;
     }
 
     wp.jstree.SiteNode.prototype._importItem = function (itemNode, destinationParentId, menu_order) {
@@ -307,14 +331,16 @@
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceCollection = itemNode.data.getApi().collection;
+        var sourceSiteApi = itemNode.data.getApi();
         var sourceId = itemNode.data.model.get('id');
+
 
         var jsonData = itemNode.data.model.toJSON();
         delete jsonData.id;
         delete jsonData.site_id;
 
         jsonData.parent = destinationParentId;
+        jsonData.menu_order = menu_order;
 
         console.log('Starting Import');
         this.collection.create(jsonData, {
@@ -324,7 +350,7 @@
 
                 itemNode.data = new wp.jstree.NodeData(model, self);
 
-                self._importChildren(model.get('id'), sourceId, sourceCollection).done(function () {
+                self._importChildren(model.get('id'), sourceId, sourceSiteApi).done(function () {
                     deferred.resolveWith(self, [true]);
                 });
 
@@ -335,7 +361,7 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype._importChildren = function (destinationParentId, sourceParentId, sourceCollection) {
+    wp.jstree.SiteNode.prototype._importChildren = function (destinationParentId, sourceParentId, sourceSiteApi) {
         var self = this;
 
         var queryData = {
@@ -347,7 +373,7 @@
             'context': 'edit',
         };
 
-        return sourceCollection.fetch({
+        return sourceSiteApi.collection.fetch({
             merge: true, silent: true, add: true, remove: false,
             data: queryData
         }).then(function (results) {
@@ -357,6 +383,9 @@
             for (var i = 0; i < results.length; i++) {
                 var id = results[i].id;
                 var jsonData = results[i];
+
+                sourceSiteApi._modelsToDelete.push(sourceSiteApi.collection.get(id));
+
                 delete jsonData.id;
                 delete jsonData.site_id;
                 delete jsonData.permalink;
@@ -365,7 +394,8 @@
 
                 promises.push(self._treeCreateNode(destinationParentId, i, jsonData).then(function (node) {
                     console.log('Created New Page ' + node.data.model.get('id'))
-                    return self._importChildren(node.data.model.get('id'), id, sourceCollection);
+
+                    return self._importChildren(node.data.model.get('id'), id, sourceSiteApi);
                 }));
 
             }
