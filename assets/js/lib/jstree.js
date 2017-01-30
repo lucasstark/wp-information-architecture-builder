@@ -4400,6 +4400,7 @@
 							"width" : "150px" // will be set a bit further down
 						},
 						"blur" : $.proxy(function (e) {
+
 							e.stopImmediatePropagation();
 							e.preventDefault();
 							var i = s.children(".jstree-rename-input"),
@@ -4430,6 +4431,7 @@
 							h2 = null;
 						}, this),
 						"keydown" : function (e) {
+
 							var key = e.which;
 							if(key === 27) {
 								cancel = true;

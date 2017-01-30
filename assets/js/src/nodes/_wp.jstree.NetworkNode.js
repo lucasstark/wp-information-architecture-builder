@@ -100,5 +100,4 @@
         return promise;
     };
 
-
 })(jQuery, wp);

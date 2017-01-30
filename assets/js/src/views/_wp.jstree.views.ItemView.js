@@ -39,6 +39,7 @@
         },
         onModelChange: function (model) {
             this.$el.find('input.title').eq(0).val(model.get('title').rendered);
+            this.$el.find('#post-slug-value').eq(0).text(model.get('link'));
         },
         onSave: function (e) {
             e.preventDefault();
@@ -96,6 +97,7 @@
         },
         //Save the model to the server, triggers the loading animations.
         saveModel: function (e) {
+            var self = this;
             var updateRequired = this.updateModel();
             if (updateRequired) {
                 var self = this;
@@ -107,6 +109,8 @@
                 this.block();
 
                 this.model.save().done(function () {
+                    self.$el.find('input.title').eq(0).val(self.model.get('title').rendered);
+                    self.$el.find('#post-slug-value').eq(0).text(self.model.get('link'));
                     inst.set_text(self.treeNode, self.model.get('title').rendered);
                     inst.set_icon(self.treeNode, wp.jstree.utils.getNodeIcon(self.model));
 

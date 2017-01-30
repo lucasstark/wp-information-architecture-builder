@@ -18,12 +18,23 @@
             this.$tree = self.$el.find('#network_browser_tree');
 
             _.bindAll(this, 'switchNode');
+
+            this.networkNode = new wp.jstree.NetworkNode(1);
+
+        },
+        blockViews : function(){
+            this.siteView.block();
+            this.itemView.block();
+        },
+        unblockViews : function(){
+            this.siteView.unblock();
+            this.itemView.unblock();
         },
         switchNode: function (treeNode) {
-            //this.siteView.switchNode(treeNode);
-            // if (treeNode.type !== 'site') {
-            // this.itemView.switchNode(treeNode)
-            //}
+            this.siteView.switchNode(treeNode);
+            if (treeNode.type !== 'site') {
+                this.itemView.switchNode(treeNode)
+            }
         },
         render: function () {
             var view = this;
@@ -39,6 +50,16 @@
             });
 
             wp.jstree.ui.setLoading(true);
+
+            //Helper to prevent tab from moving to the Info Pane title field before rename is complete.
+            this.$tree.on('keydown', '.jstree-rename-input', function(e){
+                var key = e.which;
+                if (key === 9) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.blur();
+                }
+            });
 
             this.$tree.jstree({
                 'types': {
@@ -182,8 +203,7 @@
                         //This is the root node from jstree.
                         if (node.id === '#') {
 
-                            treeInstance.networkNode = new wp.jstree.NetworkNode(1);
-                            treeInstance.networkNode.fetch().done(function (result) {
+                            view.networkNode.fetch().done(function (result) {
                                 cb.call(treeInstance, result);
                             });
 
@@ -240,19 +260,20 @@
                     } else {
 
                         if (treeNodeData.node.data.model.get('title') !== treeNodeData.node.text) {
-                            treeNodeData.node.data.model.set('title', {
-                                raw: treeNodeData.node.text,
-                                rendered: treeNodeData.node.text
-                            });
-
-                            //TODO:  Add options for default new item status
-                            treeNodeData.node.data.model.set('status', 'publish');
+                            var updateData = {
+                                'title': {
+                                    raw: treeNodeData.node.text,
+                                    rendered: treeNodeData.node.text
+                                },
+                                'status': 'publish'
+                            };
 
                             wp.jstree.ui.setLoading(true, domNode);
-                            console.log('jstree.saving', treeNodeData.node.data.model);
-                            treeNodeData.node.data.model.save().done(function () {
+                            view.blockViews();
+                            treeNodeData.node.data.model.save(updateData, {'wait': true}).done(function () {
                                 wp.jstree.ui.setLoading(false, domNode);
-                            })
+                                view.unblockViews();
+                            });
 
                         }
                     }
@@ -281,7 +302,7 @@
                     if (parentNode.data.getSiteId() !== currentNode.data.getSiteId()) {
                         //Moving items between sites.
 
-                        parentNode.data.getApi().importTreeNode( treeNodeData.instance, currentNode, parent_wp_id).then(function () {
+                        parentNode.data.getApi().importTreeNode(treeNodeData.instance, currentNode, parent_wp_id).then(function () {
                             parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         });
 
@@ -329,12 +350,12 @@
                     if (treeNodeData && treeNodeData.selected && treeNodeData.selected.length === 1 && treeNodeData.node.type !== 'network') {
                         view.switchNode(treeNodeData.node);
 
-                        if (treeNodeData.node.type !== 'site'){
+                        if (treeNodeData.node.type !== 'site') {
 
                             //treeNodeData.node.data.getApi().expandChildren(treeNodeData.instance, treeNodeData.node).done(
-                              //  function(results) {
-                                //    console.log(results);
-                                //}
+                            //  function(results) {
+                            //    console.log(results);
+                            //}
                             //)
 
                         }
@@ -355,6 +376,8 @@
 
 
     $(document).ready(function () {
+
+
         function setHeight() {
             windowHeight = $(window).innerHeight();
             $('.network_browser_tree_container').css('height', windowHeight - 200);
