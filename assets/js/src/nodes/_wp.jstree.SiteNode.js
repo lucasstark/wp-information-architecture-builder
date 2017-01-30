@@ -128,8 +128,11 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype.importItem = function (itemNode, destinationParentId, menu_order) {
-        return this._importItem(itemNode, destinationParentId, menu_order);
+    wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, itemNode, destinationParentId, menu_order) {
+
+        return this._importItem(itemNode, destinationParentId, menu_order).then(function () {
+            treeInstance.refresh_node(itemNode);
+        });
     }
 
     wp.jstree.SiteNode.prototype._importItem = function (itemNode, destinationParentId, menu_order) {
@@ -137,10 +140,10 @@
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceCollection = itemNode.getApi().collection;
-        var sourceId = itemNode.model.get('id');
+        var sourceCollection = itemNode.data.getApi().collection;
+        var sourceId = itemNode.data.model.get('id');
 
-        var jsonData = itemNode.model.toJSON();
+        var jsonData = itemNode.data.model.toJSON();
         delete jsonData.id;
         delete jsonData.site_id;
 
@@ -152,8 +155,7 @@
             success: function (model) {
                 //itemNode.model.destroy().done(function () {
 
-                itemNode.api = self;
-                itemNode.model = model;
+                itemNode.data = new wp.jstree.NodeData(model, self);
 
                 self._importChildren(model.get('id'), sourceId, sourceCollection).done(function () {
                     deferred.resolveWith(self, [true]);

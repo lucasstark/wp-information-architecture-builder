@@ -281,7 +281,7 @@
                     if (parentNode.data.getSiteId() !== currentNode.data.getSiteId()) {
                         //Moving items between sites.
 
-                        parentNode.data.getApi().importItem(currentNode.data, parent_wp_id).then(function () {
+                        parentNode.data.getApi().importTreeNode( treeNodeData.instance, currentNode, parent_wp_id).then(function () {
                             parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         });
 
