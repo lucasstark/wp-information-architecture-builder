@@ -1024,7 +1024,8 @@
 
                     } else {
 
-                        if (treeNodeData.node.data.model.get('title') !== treeNodeData.node.text) {
+                        if (treeNodeData.node.data.model.get('title').rendered !== treeNodeData.node.text) {
+
                             var updateData = {
                                 'title': {
                                     raw: treeNodeData.node.text,
