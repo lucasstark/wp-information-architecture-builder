@@ -198,7 +198,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			wp_delete_post( 1 );
 			wp_delete_comment( 1 );
 
-			$home_page_id = $this->create_page( sanitize_title( $prepared_data->title ), '_migration_homepage_id', $prepared_data->title );
+			$home_page_id = $this->create_page( __('home', 'wpiab'), '_migration_homepage_id', __('Home', 'wpiab') );
 			update_option( 'show_on_front', 'page' );
 			update_option( 'page_on_front', $home_page_id );
 		}

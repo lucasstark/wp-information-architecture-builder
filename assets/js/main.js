@@ -95,29 +95,27 @@
      */
     wp.jstree.ui.setLoading = function (loading, domNode) {
         if (loading) {
+
+            $('.blockable').block({
+                message: null,
+                overlayCSS: {
+                    background: '#000',
+                    opacity: 0.2
+                }
+            });
+
             if (domNode) {
                 domNode.addClass("jstree-loading").attr('aria-busy', true);
             }
 
             $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin').attr('aria-busy', true);
 
-            $('.network_browser_tree').block({
-                message: null,
-                overlayCSS: {
-                    background: '#fff',
-                    opacity: 0.6
-                }
-            });
-
-            //App.siteInfoPane.block();
-
         } else {
+            $('.blockable').unblock();
             if (domNode) {
                 domNode.removeClass("jstree-loading").attr('aria-busy', false);
             }
-            //App.siteInfoPane.unblock();
 
-            $('.network_browser_tree').unblock();
             $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o').attr('aria-busy', false);
         }
     }
@@ -178,9 +176,15 @@
         this.model = model;
         this.collection = null;
         this.collections = {};
-        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
+
+        model.on('change:url', this._onModelChanged, this);
+
 
         this._modelsToDelete = new Backbone.Collection();
+    };
+
+    wp.jstree.SiteNode.prototype.getSiteId = function () {
+        return this.model.get('id');
     };
 
     wp.jstree.SiteNode.prototype.getApi = function () {
@@ -189,7 +193,11 @@
 
     wp.jstree.SiteNode.prototype.getNetworkApi = function () {
         return this.networkApi;
-    }
+    };
+
+    wp.jstree.SiteNode.prototype._onModelChanged = function() {
+        this.collection = null;
+    };
 
     wp.jstree.SiteNode.prototype.fetch = function (parent) {
         if (this.collection === null) {
@@ -205,7 +213,7 @@
         var promise = deferred.promise();
 
         wp.jsTreeApi.init({
-            apiRoot: this.wpApiSiteUrl
+            apiRoot: self.model.get('url') + '/wp-json/'
         }).done(function (endpoint) {
 
             //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
@@ -257,9 +265,7 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype.getSiteId = function () {
-        return this.model.get('id');
-    };
+
 
     wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
         return this._treeCreateNode(0, menu_order);
@@ -297,18 +303,52 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, itemNode, destinationParentId, menu_order) {
+    wp.jstree.SiteNode.prototype.copyTreeNode = function (treeInstance, newParentTreeNode, treeNode, originalTreeNode, destinationParentId, menu_order) {
+
         var self = this;
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceSiteApi = itemNode.data.getApi();
+        var sourceSiteApi = originalTreeNode.data.getApi();
+        var sourceId = originalTreeNode.data.model.get('id');
+
+
+        var jsonData = originalTreeNode.data.model.toJSON();
+        delete jsonData.id;
+        delete jsonData.site_id;
+
+        jsonData.parent = destinationParentId;
+        jsonData.menu_order = menu_order;
+
+        console.log('Starting Import');
+        this.collection.create(jsonData, {
+            wait: true,
+            success: function (model) {
+
+                treeNode.data = new wp.jstree.NodeData(model, self);
+
+                self._importChildren(model.get('id'), sourceId, sourceSiteApi).done(function () {
+                    deferred.resolveWith(self, [true]);
+                });
+
+            }
+        });
+
+        return promise;
+    };
+
+    wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, treeNode, destinationParentId, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var sourceSiteApi = treeNode.data.getApi();
         sourceSiteApi._modelsToDelete = [
-            itemNode.data.model
+            treeNode.data.model
         ];
 
-        this._importItem(itemNode, destinationParentId, menu_order).then(function () {
-            treeInstance.refresh_node(itemNode);
+        this._importItem(treeNode, destinationParentId, menu_order).then(function () {
+            treeInstance.refresh_node(treeNode);
 
             var promises = [];
             for (var i = 0; i < sourceSiteApi._modelsToDelete.length; i++) {
@@ -323,18 +363,18 @@
         });
 
         return promise;
-    }
+    };
 
-    wp.jstree.SiteNode.prototype._importItem = function (itemNode, destinationParentId, menu_order) {
+    wp.jstree.SiteNode.prototype._importItem = function (treeNode, destinationParentId, menu_order) {
         var self = this;
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceSiteApi = itemNode.data.getApi();
-        var sourceId = itemNode.data.model.get('id');
+        var sourceSiteApi = treeNode.data.getApi();
+        var sourceId = treeNode.data.model.get('id');
 
 
-        var jsonData = itemNode.data.model.toJSON();
+        var jsonData = treeNode.data.model.toJSON();
         delete jsonData.id;
         delete jsonData.site_id;
 
@@ -346,7 +386,7 @@
             wait: true,
             success: function (model) {
 
-                itemNode.data = new wp.jstree.NodeData(model, self);
+                treeNode.data = new wp.jstree.NodeData(model, self);
 
                 self._importChildren(model.get('id'), sourceId, sourceSiteApi).done(function () {
                     deferred.resolveWith(self, [true]);
@@ -787,16 +827,8 @@
             this.networkNode = new wp.jstree.NetworkNode(1);
 
         },
-        blockViews : function(){
-            this.siteView.block();
-            this.itemView.block();
-        },
-        unblockViews : function(){
-            this.siteView.unblock();
-            this.itemView.unblock();
-        },
         switchNode: function (treeNode) {
-            this.siteView.switchNode(treeNode);
+            //this.siteView.switchNode(treeNode);
             if (treeNode.type !== 'site') {
                 this.itemView.switchNode(treeNode)
             }
@@ -804,15 +836,6 @@
         render: function () {
             var view = this;
 
-            //Show the loading animation on the network tree view while it's loading for the first time.
-
-            view.$el.find('.network_browser_tree_container').block({
-                message: null,
-                overlayCSS: {
-                    background: '#000',
-                    opacity: 0.2
-                }
-            });
 
             wp.jstree.ui.setLoading(true);
 
@@ -870,6 +893,9 @@
 
                         //If the id is root, it's the "Sites" top level node.  Set the context menu to allow creating a new site.
                         if (node.id === 'root') {
+
+
+
                             tmp.create.label = wp_iab_params.labels.new_site;
                             tmp.create.separator_after = false;
                             tmp.create.separator_before = false;
@@ -891,25 +917,11 @@
                             //Remove other actions since create site is the only allowed operation.
                             delete tmp.ccp;
                             delete tmp.rename;
+                            delete tmp.remove;
 
-                            //Reset the remove action to delete the page model.
-                            tmp.remove.action = function (data) {
-                                var treeInstance = $.jstree.reference(data.reference)
-                                var nodeToDelete = treeInstance.get_node(data.reference);
-                                var domNodeToDelete = treeInstance.get_node(data.reference, true);
-
-                                wp.jstree.ui.setLoading(true, domNodeToDelete);
-                                nodeToDelete.data.model.destroy().done(function () {
-                                    setTimeout(function () {
-                                        treeInstance.delete_node(nodeToDelete);
-                                        wp.jstree.ui.setLoading(false, domNodeToDelete);
-                                    }, 0);
-                                });
-
-                            }
 
                         } else {
-                            delete tmp.ccp;
+
                             //Context menu for any page.
                             //Reset the create action to create a new tree node and then call the edit function.
                             tmp.create.label = wp_iab_params.labels.newItem;
@@ -988,9 +1000,13 @@
                     if (treeNodeData.node.type === 'site') {
                         //view.switchNode(treeNodeData.node);
                     }
+
                     wp.jstree.ui.setLoading(true);
                 })
                 .on('load_node.jstree', function (e, treeNodeData) {
+                    if (treeNodeData.node.type !== 'site' && treeNodeData.node.type !== 'network' && treeNodeData.node.type !== '#') {
+                        view.switchNode(treeNodeData.node);
+                    }
                     wp.jstree.ui.setLoading(false);
                 })
                 .on('loaded.jstree', function (e, treeNodeData) {
@@ -1019,7 +1035,9 @@
 
                         wp.jstree.ui.setLoading(true, domNode);
                         treeNodeData.node.data.model.save().done(function () {
-                            treeNodeData.instance.refresh(treeNodeData.node);
+
+                            wp.jstree.ui.setLoading(false, domNode);
+                            treeNodeData.instance.refresh_node(treeNodeData.node);
                         });
 
                     } else {
@@ -1035,10 +1053,10 @@
                             };
 
                             wp.jstree.ui.setLoading(true, domNode);
-                            view.blockViews();
+
                             treeNodeData.node.data.model.save(updateData, {'wait': true}).done(function () {
                                 wp.jstree.ui.setLoading(false, domNode);
-                                view.unblockViews();
+                                treeNodeData.instance.refresh_node(treeNodeData.node);
                             });
 
                         }
@@ -1127,7 +1145,23 @@
                         }
 
                     }
+                })
+                .on('copy_node.jstree', function(e, treeNodeData) {
 
+                    var parentNode = treeNodeData.instance.get_node(treeNodeData.parent);
+                    var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
+
+                    var destinationParentId = parentNode.type === 'site' ? 0 : parentNode.data.model.get('id');
+
+                    parentDomNode.addClass('jstree-loading').attr('aria-busy', true);
+                    wp.jstree.ui.setLoading(true);
+                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function(){
+                        parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
+                        wp.jstree.ui.setLoading(false);
+                    });
+
+                })
+                .on('paste.jstree', function(e, treeNodeData) {
 
                 })
                 .on('ready.jstree', function (e) {

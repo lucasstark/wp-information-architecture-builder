@@ -22,16 +22,8 @@
             this.networkNode = new wp.jstree.NetworkNode(1);
 
         },
-        blockViews : function(){
-            this.siteView.block();
-            this.itemView.block();
-        },
-        unblockViews : function(){
-            this.siteView.unblock();
-            this.itemView.unblock();
-        },
         switchNode: function (treeNode) {
-            this.siteView.switchNode(treeNode);
+            //this.siteView.switchNode(treeNode);
             if (treeNode.type !== 'site') {
                 this.itemView.switchNode(treeNode)
             }
@@ -39,15 +31,6 @@
         render: function () {
             var view = this;
 
-            //Show the loading animation on the network tree view while it's loading for the first time.
-
-            view.$el.find('.network_browser_tree_container').block({
-                message: null,
-                overlayCSS: {
-                    background: '#000',
-                    opacity: 0.2
-                }
-            });
 
             wp.jstree.ui.setLoading(true);
 
@@ -105,6 +88,9 @@
 
                         //If the id is root, it's the "Sites" top level node.  Set the context menu to allow creating a new site.
                         if (node.id === 'root') {
+
+
+
                             tmp.create.label = wp_iab_params.labels.new_site;
                             tmp.create.separator_after = false;
                             tmp.create.separator_before = false;
@@ -126,25 +112,11 @@
                             //Remove other actions since create site is the only allowed operation.
                             delete tmp.ccp;
                             delete tmp.rename;
+                            delete tmp.remove;
 
-                            //Reset the remove action to delete the page model.
-                            tmp.remove.action = function (data) {
-                                var treeInstance = $.jstree.reference(data.reference)
-                                var nodeToDelete = treeInstance.get_node(data.reference);
-                                var domNodeToDelete = treeInstance.get_node(data.reference, true);
-
-                                wp.jstree.ui.setLoading(true, domNodeToDelete);
-                                nodeToDelete.data.model.destroy().done(function () {
-                                    setTimeout(function () {
-                                        treeInstance.delete_node(nodeToDelete);
-                                        wp.jstree.ui.setLoading(false, domNodeToDelete);
-                                    }, 0);
-                                });
-
-                            }
 
                         } else {
-                            delete tmp.ccp;
+
                             //Context menu for any page.
                             //Reset the create action to create a new tree node and then call the edit function.
                             tmp.create.label = wp_iab_params.labels.newItem;
@@ -223,9 +195,13 @@
                     if (treeNodeData.node.type === 'site') {
                         //view.switchNode(treeNodeData.node);
                     }
+
                     wp.jstree.ui.setLoading(true);
                 })
                 .on('load_node.jstree', function (e, treeNodeData) {
+                    if (treeNodeData.node.type !== 'site' && treeNodeData.node.type !== 'network' && treeNodeData.node.type !== '#') {
+                        view.switchNode(treeNodeData.node);
+                    }
                     wp.jstree.ui.setLoading(false);
                 })
                 .on('loaded.jstree', function (e, treeNodeData) {
@@ -254,7 +230,9 @@
 
                         wp.jstree.ui.setLoading(true, domNode);
                         treeNodeData.node.data.model.save().done(function () {
-                            treeNodeData.instance.refresh(treeNodeData.node);
+
+                            wp.jstree.ui.setLoading(false, domNode);
+                            treeNodeData.instance.refresh_node(treeNodeData.node);
                         });
 
                     } else {
@@ -270,10 +248,10 @@
                             };
 
                             wp.jstree.ui.setLoading(true, domNode);
-                            view.blockViews();
+
                             treeNodeData.node.data.model.save(updateData, {'wait': true}).done(function () {
                                 wp.jstree.ui.setLoading(false, domNode);
-                                view.unblockViews();
+                                treeNodeData.instance.refresh_node(treeNodeData.node);
                             });
 
                         }
@@ -362,7 +340,23 @@
                         }
 
                     }
+                })
+                .on('copy_node.jstree', function(e, treeNodeData) {
 
+                    var parentNode = treeNodeData.instance.get_node(treeNodeData.parent);
+                    var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
+
+                    var destinationParentId = parentNode.type === 'site' ? 0 : parentNode.data.model.get('id');
+
+                    parentDomNode.addClass('jstree-loading').attr('aria-busy', true);
+                    wp.jstree.ui.setLoading(true);
+                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function(){
+                        parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
+                        wp.jstree.ui.setLoading(false);
+                    });
+
+                })
+                .on('paste.jstree', function(e, treeNodeData) {
 
                 })
                 .on('ready.jstree', function (e) {

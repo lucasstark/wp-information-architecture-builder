@@ -11,9 +11,15 @@
         this.model = model;
         this.collection = null;
         this.collections = {};
-        this.wpApiSiteUrl = this.model.get('url') + '/wp-json/';
+
+        model.on('change:url', this._onModelChanged, this);
+
 
         this._modelsToDelete = new Backbone.Collection();
+    };
+
+    wp.jstree.SiteNode.prototype.getSiteId = function () {
+        return this.model.get('id');
     };
 
     wp.jstree.SiteNode.prototype.getApi = function () {
@@ -22,7 +28,11 @@
 
     wp.jstree.SiteNode.prototype.getNetworkApi = function () {
         return this.networkApi;
-    }
+    };
+
+    wp.jstree.SiteNode.prototype._onModelChanged = function() {
+        this.collection = null;
+    };
 
     wp.jstree.SiteNode.prototype.fetch = function (parent) {
         if (this.collection === null) {
@@ -38,7 +48,7 @@
         var promise = deferred.promise();
 
         wp.jsTreeApi.init({
-            apiRoot: this.wpApiSiteUrl
+            apiRoot: self.model.get('url') + '/wp-json/'
         }).done(function (endpoint) {
 
             //If we wanted to load more than just pages @ref: https://gist.github.com/lucasstark/03311f1776d1bc027dc53871fe7b7eef as an example
@@ -90,9 +100,7 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype.getSiteId = function () {
-        return this.model.get('id');
-    };
+
 
     wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
         return this._treeCreateNode(0, menu_order);
@@ -130,18 +138,52 @@
         return promise;
     };
 
-    wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, itemNode, destinationParentId, menu_order) {
+    wp.jstree.SiteNode.prototype.copyTreeNode = function (treeInstance, newParentTreeNode, treeNode, originalTreeNode, destinationParentId, menu_order) {
+
         var self = this;
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceSiteApi = itemNode.data.getApi();
+        var sourceSiteApi = originalTreeNode.data.getApi();
+        var sourceId = originalTreeNode.data.model.get('id');
+
+
+        var jsonData = originalTreeNode.data.model.toJSON();
+        delete jsonData.id;
+        delete jsonData.site_id;
+
+        jsonData.parent = destinationParentId;
+        jsonData.menu_order = menu_order;
+
+        console.log('Starting Import');
+        this.collection.create(jsonData, {
+            wait: true,
+            success: function (model) {
+
+                treeNode.data = new wp.jstree.NodeData(model, self);
+
+                self._importChildren(model.get('id'), sourceId, sourceSiteApi).done(function () {
+                    deferred.resolveWith(self, [true]);
+                });
+
+            }
+        });
+
+        return promise;
+    };
+
+    wp.jstree.SiteNode.prototype.importTreeNode = function (treeInstance, treeNode, destinationParentId, menu_order) {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var sourceSiteApi = treeNode.data.getApi();
         sourceSiteApi._modelsToDelete = [
-            itemNode.data.model
+            treeNode.data.model
         ];
 
-        this._importItem(itemNode, destinationParentId, menu_order).then(function () {
-            treeInstance.refresh_node(itemNode);
+        this._importItem(treeNode, destinationParentId, menu_order).then(function () {
+            treeInstance.refresh_node(treeNode);
 
             var promises = [];
             for (var i = 0; i < sourceSiteApi._modelsToDelete.length; i++) {
@@ -156,18 +198,18 @@
         });
 
         return promise;
-    }
+    };
 
-    wp.jstree.SiteNode.prototype._importItem = function (itemNode, destinationParentId, menu_order) {
+    wp.jstree.SiteNode.prototype._importItem = function (treeNode, destinationParentId, menu_order) {
         var self = this;
         var deferred = jQuery.Deferred();
         var promise = deferred.promise();
 
-        var sourceSiteApi = itemNode.data.getApi();
-        var sourceId = itemNode.data.model.get('id');
+        var sourceSiteApi = treeNode.data.getApi();
+        var sourceId = treeNode.data.model.get('id');
 
 
-        var jsonData = itemNode.data.model.toJSON();
+        var jsonData = treeNode.data.model.toJSON();
         delete jsonData.id;
         delete jsonData.site_id;
 
@@ -179,7 +221,7 @@
             wait: true,
             success: function (model) {
 
-                itemNode.data = new wp.jstree.NodeData(model, self);
+                treeNode.data = new wp.jstree.NodeData(model, self);
 
                 self._importChildren(model.get('id'), sourceId, sourceSiteApi).done(function () {
                     deferred.resolveWith(self, [true]);

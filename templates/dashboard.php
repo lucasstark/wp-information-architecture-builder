@@ -6,7 +6,7 @@
             <div class="wpiab-outer-wrap">
 
                 <div class="wpiab-tree-wrap-outer">
-                    <div id="container" role="main" class="wpiab-tree-wrap-inner info-container">
+                    <div id="container" role="main" class="wpiab-tree-wrap-inner info-container  ">
                         <h2 class="title"><?php _e( 'Site Structure', 'wpiab' ); ?></h2>
                         <div class="loading-wrapper">
                             <div class="loading visually-hidden">
@@ -26,7 +26,7 @@
 
         <div class="info-containers">
 
-            <div id="info-container" class="info-container">
+            <div id="info-container" class="info-container ">
                 <h2 class="title"><?php _e( 'Page Information', 'wpiab' ); ?></h2>
                 <div class="loading-wrapper">
                     <div class="loading visually-hidden">
@@ -34,7 +34,7 @@
                         <span class="sr-only">Loading...</span>
                     </div>
                 </div>
-                <div class="inside">
+                <div class="inside blockable">
                     <div id="info-pane">
                     </div>
                 </div>
@@ -49,7 +49,7 @@
                         <span class="sr-only">Loading...</span>
                     </div>
                 </div>
-                <div class="inside">
+                <div class="inside blockable">
                     <div id="site-info-pane">
                         <div class="site-info-plot" style="width:400px;height:400px;"></div>
                         <div class="site-info-content"></div>

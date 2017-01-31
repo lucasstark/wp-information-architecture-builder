@@ -9,29 +9,27 @@
      */
     wp.jstree.ui.setLoading = function (loading, domNode) {
         if (loading) {
+
+            $('.blockable').block({
+                message: null,
+                overlayCSS: {
+                    background: '#000',
+                    opacity: 0.2
+                }
+            });
+
             if (domNode) {
                 domNode.addClass("jstree-loading").attr('aria-busy', true);
             }
 
             $('.loading-icon').removeClass('fa-circle-o').addClass('fa-circle-o-notch fa-spin').attr('aria-busy', true);
 
-            $('.network_browser_tree').block({
-                message: null,
-                overlayCSS: {
-                    background: '#fff',
-                    opacity: 0.6
-                }
-            });
-
-            //App.siteInfoPane.block();
-
         } else {
+            $('.blockable').unblock();
             if (domNode) {
                 domNode.removeClass("jstree-loading").attr('aria-busy', false);
             }
-            //App.siteInfoPane.unblock();
 
-            $('.network_browser_tree').unblock();
             $('.loading-icon').removeClass('fa-circle-o-notch fa-spin').addClass('fa-circle-o').attr('aria-busy', false);
         }
     }
