@@ -121,7 +121,7 @@
     }
 
 })(jQuery, wp)
-;(function($, wp) {
+;(function ($, wp) {
 
     /**
      * Data object for individual items in the jsTree.
@@ -134,7 +134,7 @@
         this.api = api;
     };
 
-    wp.jstree.NodeData.prototype.getApi = function(){
+    wp.jstree.NodeData.prototype.getApi = function () {
         return this.api;
     }
 
@@ -147,6 +147,21 @@
      */
     wp.jstree.NodeData.prototype.fetch = function () {
         return this.api.fetch(this.model.get('id'));
+    };
+
+    wp.jstree.NodeData.prototype.fetchAllChildren = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var collection = new self.api.collections.Pages();
+
+        self.api._fetchAllChildren(self.model.get('id'), collection).done(function () {
+                deferred.resolveWith(self, [collection]);
+            }
+        );
+
+        return promise;
     };
 
     /**
@@ -195,7 +210,7 @@
         return this.networkApi;
     };
 
-    wp.jstree.SiteNode.prototype._onModelChanged = function() {
+    wp.jstree.SiteNode.prototype._onModelChanged = function () {
         this.collection = null;
     };
 
@@ -266,7 +281,6 @@
     };
 
 
-
     wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
         return this._treeCreateNode(0, menu_order);
     };
@@ -320,7 +334,6 @@
         jsonData.parent = destinationParentId;
         jsonData.menu_order = menu_order;
 
-        console.log('Starting Import');
         this.collection.create(jsonData, {
             wait: true,
             success: function (model) {
@@ -414,7 +427,6 @@
             merge: true, silent: true, add: true, remove: false,
             data: queryData
         }).then(function (results) {
-            console.log('Fetched Children for ' + sourceParentId);
             var promises = [];
 
             for (var i = 0; i < results.length; i++) {
@@ -447,6 +459,54 @@
         });
 
     };
+
+
+    wp.jstree.SiteNode.prototype.fetchAllChildren = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var collection = new this.collections.Pages();
+
+        this._fetchAllChildren(0, collection).done(function () {
+                deferred.resolveWith(self, [collection]);
+            }
+        );
+
+        return promise;
+
+    };
+
+    wp.jstree.SiteNode.prototype._fetchAllChildren = function (parentId, collection) {
+        var self = this;
+
+        var queryData = {
+            'orderby': 'menu_order',
+            'order': 'asc',
+            'parent': parentId || 0,
+            'per_page': 100,
+            'status': ['publish', 'draft', 'pending'],
+            'context': 'edit',
+        };
+
+        return collection.fetch({
+            merge: true, silent: true, add: true, remove: false,
+            data: queryData
+        }).then(function (results) {
+            var promises = [];
+
+            for (var i = 0; i < results.length; i++) {
+                var id = results[i].id;
+                var jsonData = results[i];
+
+                if (jsonData.has_children) {
+                    promises.push(self._fetchAllChildren(id, collection));
+                }
+            }
+
+            return $.when.apply($, promises);
+        });
+    }
 
 
 })(jQuery, wp);
@@ -840,7 +900,7 @@
             wp.jstree.ui.setLoading(true);
 
             //Helper to prevent tab from moving to the Info Pane title field before rename is complete.
-            this.$tree.on('keydown', '.jstree-rename-input', function(e){
+            this.$tree.on('keydown', '.jstree-rename-input', function (e) {
                 var key = e.which;
                 if (key === 9) {
                     e.preventDefault();
@@ -895,7 +955,6 @@
                         if (node.id === 'root') {
 
 
-
                             tmp.create.label = wp_iab_params.labels.new_site;
                             tmp.create.separator_after = false;
                             tmp.create.separator_before = false;
@@ -941,18 +1000,34 @@
 
                             //Reset the remove action to delete the page model.
                             tmp.remove.action = function (data) {
-                                var inst = $.jstree.reference(data.reference)
+                                var inst = $.jstree.reference(data.reference);
+
                                 var nodeToDelete = inst.get_node(data.reference);
                                 var domNodeToDelete = inst.get_node(data.reference, true);
+                                var parentDomNode = inst.get_node(nodeToDelete.parent, true);
 
                                 wp.jstree.ui.setLoading(true, domNodeToDelete);
-                                nodeToDelete.data.model.destroy().done(function () {
-                                    setTimeout(function () {
+                                wp.jstree.ui.setLoading(true, parentDomNode);
+
+                                var promises = [];
+
+                                nodeToDelete.data.fetchAllChildren().then(function (collection) {
+
+                                    var model;
+
+                                    while (model = collection.first()) {
+                                        promises.push(model.destroy());
+                                    }
+
+                                    $.when.apply($, promises).then(function(){
+                                        return nodeToDelete.data.model.destroy();
+                                    }).then(function(){
                                         inst.delete_node(nodeToDelete);
                                         wp.jstree.ui.setLoading(false, domNodeToDelete);
-                                    }, 0);
-                                });
+                                        wp.jstree.ui.setLoading(false, parentDomNode);
+                                    });
 
+                                });
                             }
                         }
 
@@ -1146,7 +1221,7 @@
 
                     }
                 })
-                .on('copy_node.jstree', function(e, treeNodeData) {
+                .on('copy_node.jstree', function (e, treeNodeData) {
 
                     var parentNode = treeNodeData.instance.get_node(treeNodeData.parent);
                     var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
@@ -1155,13 +1230,19 @@
 
                     parentDomNode.addClass('jstree-loading').attr('aria-busy', true);
                     wp.jstree.ui.setLoading(true);
-                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function(){
+                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function () {
                         parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         wp.jstree.ui.setLoading(false);
                     });
 
                 })
-                .on('paste.jstree', function(e, treeNodeData) {
+                .on('delete_node.jstree', function (e, treeNodeData) {
+
+
+
+
+
+
 
                 })
                 .on('ready.jstree', function (e) {

@@ -35,7 +35,7 @@
             wp.jstree.ui.setLoading(true);
 
             //Helper to prevent tab from moving to the Info Pane title field before rename is complete.
-            this.$tree.on('keydown', '.jstree-rename-input', function(e){
+            this.$tree.on('keydown', '.jstree-rename-input', function (e) {
                 var key = e.which;
                 if (key === 9) {
                     e.preventDefault();
@@ -90,7 +90,6 @@
                         if (node.id === 'root') {
 
 
-
                             tmp.create.label = wp_iab_params.labels.new_site;
                             tmp.create.separator_after = false;
                             tmp.create.separator_before = false;
@@ -136,18 +135,34 @@
 
                             //Reset the remove action to delete the page model.
                             tmp.remove.action = function (data) {
-                                var inst = $.jstree.reference(data.reference)
+                                var inst = $.jstree.reference(data.reference);
+
                                 var nodeToDelete = inst.get_node(data.reference);
                                 var domNodeToDelete = inst.get_node(data.reference, true);
+                                var parentDomNode = inst.get_node(nodeToDelete.parent, true);
 
                                 wp.jstree.ui.setLoading(true, domNodeToDelete);
-                                nodeToDelete.data.model.destroy().done(function () {
-                                    setTimeout(function () {
+                                wp.jstree.ui.setLoading(true, parentDomNode);
+
+                                var promises = [];
+
+                                nodeToDelete.data.fetchAllChildren().then(function (collection) {
+
+                                    var model;
+
+                                    while (model = collection.first()) {
+                                        promises.push(model.destroy());
+                                    }
+
+                                    $.when.apply($, promises).then(function(){
+                                        return nodeToDelete.data.model.destroy();
+                                    }).then(function(){
                                         inst.delete_node(nodeToDelete);
                                         wp.jstree.ui.setLoading(false, domNodeToDelete);
-                                    }, 0);
-                                });
+                                        wp.jstree.ui.setLoading(false, parentDomNode);
+                                    });
 
+                                });
                             }
                         }
 
@@ -341,7 +356,7 @@
 
                     }
                 })
-                .on('copy_node.jstree', function(e, treeNodeData) {
+                .on('copy_node.jstree', function (e, treeNodeData) {
 
                     var parentNode = treeNodeData.instance.get_node(treeNodeData.parent);
                     var parentDomNode = treeNodeData.instance.get_node(treeNodeData.node.parent, true);
@@ -350,13 +365,19 @@
 
                     parentDomNode.addClass('jstree-loading').attr('aria-busy', true);
                     wp.jstree.ui.setLoading(true);
-                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function(){
+                    parentNode.data.getApi().copyTreeNode(treeNodeData.instance, parentNode, treeNodeData.node, treeNodeData.original, destinationParentId, treeNodeData.position).done(function () {
                         parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         wp.jstree.ui.setLoading(false);
                     });
 
                 })
-                .on('paste.jstree', function(e, treeNodeData) {
+                .on('delete_node.jstree', function (e, treeNodeData) {
+
+
+
+
+
+
 
                 })
                 .on('ready.jstree', function (e) {

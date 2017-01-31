@@ -30,7 +30,7 @@
         return this.networkApi;
     };
 
-    wp.jstree.SiteNode.prototype._onModelChanged = function() {
+    wp.jstree.SiteNode.prototype._onModelChanged = function () {
         this.collection = null;
     };
 
@@ -101,7 +101,6 @@
     };
 
 
-
     wp.jstree.SiteNode.prototype.treeCreateNode = function (menu_order) {
         return this._treeCreateNode(0, menu_order);
     };
@@ -155,7 +154,6 @@
         jsonData.parent = destinationParentId;
         jsonData.menu_order = menu_order;
 
-        console.log('Starting Import');
         this.collection.create(jsonData, {
             wait: true,
             success: function (model) {
@@ -249,7 +247,6 @@
             merge: true, silent: true, add: true, remove: false,
             data: queryData
         }).then(function (results) {
-            console.log('Fetched Children for ' + sourceParentId);
             var promises = [];
 
             for (var i = 0; i < results.length; i++) {
@@ -282,6 +279,54 @@
         });
 
     };
+
+
+    wp.jstree.SiteNode.prototype.fetchAllChildren = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var collection = new this.collections.Pages();
+
+        this._fetchAllChildren(0, collection).done(function () {
+                deferred.resolveWith(self, [collection]);
+            }
+        );
+
+        return promise;
+
+    };
+
+    wp.jstree.SiteNode.prototype._fetchAllChildren = function (parentId, collection) {
+        var self = this;
+
+        var queryData = {
+            'orderby': 'menu_order',
+            'order': 'asc',
+            'parent': parentId || 0,
+            'per_page': 100,
+            'status': ['publish', 'draft', 'pending'],
+            'context': 'edit',
+        };
+
+        return collection.fetch({
+            merge: true, silent: true, add: true, remove: false,
+            data: queryData
+        }).then(function (results) {
+            var promises = [];
+
+            for (var i = 0; i < results.length; i++) {
+                var id = results[i].id;
+                var jsonData = results[i];
+
+                if (jsonData.has_children) {
+                    promises.push(self._fetchAllChildren(id, collection));
+                }
+            }
+
+            return $.when.apply($, promises);
+        });
+    }
 
 
 })(jQuery, wp);

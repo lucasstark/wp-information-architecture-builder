@@ -1,4 +1,4 @@
-;(function($, wp) {
+;(function ($, wp) {
 
     /**
      * Data object for individual items in the jsTree.
@@ -11,7 +11,7 @@
         this.api = api;
     };
 
-    wp.jstree.NodeData.prototype.getApi = function(){
+    wp.jstree.NodeData.prototype.getApi = function () {
         return this.api;
     }
 
@@ -24,6 +24,21 @@
      */
     wp.jstree.NodeData.prototype.fetch = function () {
         return this.api.fetch(this.model.get('id'));
+    };
+
+    wp.jstree.NodeData.prototype.fetchAllChildren = function () {
+        var self = this;
+        var deferred = jQuery.Deferred();
+        var promise = deferred.promise();
+
+        var collection = new self.api.collections.Pages();
+
+        self.api._fetchAllChildren(self.model.get('id'), collection).done(function () {
+                deferred.resolveWith(self, [collection]);
+            }
+        );
+
+        return promise;
     };
 
     /**
