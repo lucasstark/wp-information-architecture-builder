@@ -1,4 +1,7 @@
 <script id="info-pane-template" type="text/template">
+
+
+
 	<form>
 		<div class="inputs">
 			<p>
@@ -41,6 +44,9 @@
 
 	<div class="controls">
 		<div id="major-publishing-actions">
+            <div class="editing-action">
+                <a target="_blank" name="edit" class="btn-edit button button-secondary button-large" href="<%= editUrl %>" id="btn-edit"><%= wp_iab_params.labels.edit %></a>
+            </div>
 			<div id="publishing-action">
 				<span class="spinner"></span>
 				<input name="save" type="submit" class="btn-save button button-primary button-large" id="btn-save"

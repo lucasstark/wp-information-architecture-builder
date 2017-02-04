@@ -190,6 +190,8 @@
         this.networkApi = networkApi;
         this.model = model;
         this.collection = null;
+        this.attachments = null;
+
         this.collections = {};
 
         model.on('change:url', this._onModelChanged, this);
@@ -236,6 +238,7 @@
 
             //Create just the Pages endpoint and return the root pages as the initial nodes.
             self.collection = new self.collections.Pages();
+            self.attachments = new self.collections.Media();
 
             self._fetch(0).done(function (results) {
                 deferred.resolveWith(self, [results]);
@@ -300,6 +303,8 @@
             migration_content_status: '',
             migration_status: 'new',
         }, modelData);
+
+        console.log(data);
 
         data.parent = parent;
 
@@ -618,10 +623,103 @@
     /**
      * The view for each page.  Has the title and other fields.
      */
+    wp.jstree.views.AddItemsView = Backbone.View.extend({
+        tagName: 'div',
+        className: 'wp-iab-add-items-view wp-iab-drop-target',
+        initialize: function (parentModel) {
+            var self = this;
+
+            ;
+
+            window.addEventListener("dragenter", function (e) {
+                e.preventDefault();
+                if (e.target !== self.$elDropTarget[0]) {
+                    e.dataTransfer.effectAllowed = "none";
+                    e.dataTransfer.dropEffect = "none";
+                }
+            }, false);
+
+            window.addEventListener("dragover", function (e) {
+                e.preventDefault();
+                if (e.target !== self.$elDropTarget[0]) {
+                    e.dataTransfer.effectAllowed = "none";
+                    e.dataTransfer.dropEffect = "none";
+                }
+            });
+
+            window.addEventListener("drop", function (e) {
+                e.preventDefault();
+                if (e.target !== self.$elDropTarget[0]) {
+                    e.dataTransfer.effectAllowed = "none";
+                    e.dataTransfer.dropEffect = "none";
+                } else {
+                    self.onDrop(e);
+                }
+            });
+
+            this.collection = new Backbone.Collection();
+
+            this.listenTo(this.collection, 'add', this.onItemAdded);
+            this.listenTo(this.collection, 'remove', this.onItemRemoved);
+
+
+
+            _.bindAll(this, 'onItemAdded', 'onItemRemoved');
+
+        },
+        render: function () {
+            this.$el.append('<div class="wp-iab-drop-target"></div>');
+            this.$el.append('<div class="wp-iab-items-list-wrap"><ul class="wp-iab-items-list"></ul></div>');
+
+            this.$elDropTarget = this.$el.find('.wp-iab-drop-target');
+            this.$elList = this.$el.find('.wp-iab-items-list');
+
+            return this;
+        },
+        onDrop: function (e) {
+            var title = e.dataTransfer.getData('text');
+
+            this.collection.add({
+                title: {
+                    rendered: title,
+                    raw: title
+                }
+            });
+        },
+        onItemAdded: function (item) {
+            this.$elList.append('<li id="wp-iab-add-items-list-item-' + item.cId + '">' + item.get('title').rendered + '</li>');
+        },
+
+        onItemRemoved: function (item) {
+
+        },
+        block: function () {
+            //From blockui
+            this.$el.block({
+                message: null,
+                overlayCSS: {
+                    background: '#fff',
+                    opacity: 0.6
+                }
+            });
+        },
+        unblock: function () {
+            //From blockui
+            this.$el.unblock();
+        }
+    });
+
+
+})(jQuery, wp);
+;(function ($, wp) {
+
+    /**
+     * The view for each page.  Has the title and other fields.
+     */
     wp.jstree.views.ItemView = Backbone.View.extend({
         treeNode: {},
         //Template is in views/index.php
-        template: _.template($('#info-pane-template').html()),
+        template: _.template($('#info-pane-template').length ? $('#info-pane-template').html() : ''),
         events: {
             "click .btn-save": "onSave",
             "click .btn-delete": "onDelete",
@@ -650,7 +748,9 @@
 
             this.treeNode = treeNode;
             this.empty();
-            this.$content.html(this.template(this.model.attributes));
+            var editUrl = this.treeNode.data.getApi().model.get('url') + '/wp-admin/post.php?post=' + this.model.get('id') + '&action=edit';
+            var attributes = _.extend( { editUrl: editUrl }, this.model.attributes );
+            this.$content.html(this.template( attributes ) );
         },
         onModelChange: function (model) {
             this.$el.find('input.title').eq(0).val(model.get('title').rendered);
@@ -756,7 +856,7 @@
     //Contains the chart for the site information.
     wp.jstree.views.SiteView = Backbone.View.extend({
         //Template is in views/index.php
-        template: _.template($('#site-info-pane-template').html()),
+        template: _.template($('#site-info-pane-template').length ? $('#site-info-pane-template').html() : ''),
         initialize: function () {
             _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);
@@ -867,6 +967,7 @@
     //Main Application Screen
     $.jstree.defaults.core.themes.variant = "large";
     $.jstree.defaults.core.themes.stripes = true;
+    $.jstree.defaults.dnd.use_html5 = false;
 
     wp.jstree.views.ApplicationView = Backbone.View.extend({
         initialize: function () {
@@ -932,7 +1033,7 @@
                     }
                 },
                 "plugins": [
-                    "types", "contextmenu", "dnd",
+                    "types", "contextmenu", "dnd"
                 ],
                 'dnd': {
                     //Disallow dragging of sites since there isn't an order to the sites in a multisite.
@@ -1019,9 +1120,9 @@
                                         promises.push(model.destroy());
                                     }
 
-                                    $.when.apply($, promises).then(function(){
+                                    $.when.apply($, promises).then(function () {
                                         return nodeToDelete.data.model.destroy();
-                                    }).then(function(){
+                                    }).then(function () {
                                         inst.delete_node(nodeToDelete);
                                         wp.jstree.ui.setLoading(false, domNodeToDelete);
                                         wp.jstree.ui.setLoading(false, parentDomNode);
@@ -1029,6 +1130,16 @@
 
                                 });
                             }
+
+                            tmp.import = {};
+                            tmp.import.label = wp_iab_params.labels.build_children;
+                            tmp.import.separator_after = false;
+                            tmp.import.separator_before = false;
+                            tmp.import.action = function (data) {
+                                if (aut0poietic.backbone_modal.__instance === undefined) {
+                                    aut0poietic.backbone_modal.__instance = new aut0poietic.backbone_modal.Application();
+                                }
+                            };
                         }
 
                         return tmp;
@@ -1095,6 +1206,8 @@
                         treeNodeData.instance.select_node(treeNodeData.node)
 
                     } else {
+                        var parentNode =  treeNodeData.instance.get_node(treeNodeData.parent);
+                        treeNodeData.instance.set_icon(parentNode, 'jstree-icon jstree-themeicon glyph-icon fa fa-folder font-new jstree-themeicon-custom');
                         treeNodeData.instance.deselect_all();
                         treeNodeData.instance.select_node(treeNodeData.node)
                     }
@@ -1239,42 +1352,38 @@
                 .on('delete_node.jstree', function (e, treeNodeData) {
 
 
-
-
-
-
-
                 })
                 .on('ready.jstree', function (e) {
                     wp.jstree.ui.setLoading(false);
                     view.$el.find('.network_browser_tree_container').unblock();
-                });
+                })
         }
     });
 
 
     //Initialize the tree and hook up all the actions.
-
-
     $(document).ready(function () {
 
-
-        function setHeight() {
-            windowHeight = $(window).innerHeight();
-            $('.network_browser_tree_container').css('height', windowHeight - 200);
-            $('.wrap').css('height', windowHeight);
-        };
-        setHeight();
-
-        $(window).resize(function () {
+        if ($('#application_root').length) {
+            function setHeight() {
+                windowHeight = $(window).innerHeight();
+                $('.network_browser_tree_container').css('height', windowHeight - 200);
+                $('.wrap').css('height', windowHeight);
+            };
             setHeight();
-        });
 
-        var application = new wp.jstree.views.ApplicationView({
-            el: '#application_root'
-        });
+            $(window).resize(function () {
+                setHeight();
+            });
 
-        application.render();
+            var application = new wp.jstree.views.ApplicationView({
+                el: '#application_root'
+            });
+
+            application.render();
+        }
+
+
     });
 
 }(jQuery, wp));

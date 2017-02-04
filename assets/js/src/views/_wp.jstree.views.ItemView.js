@@ -6,7 +6,7 @@
     wp.jstree.views.ItemView = Backbone.View.extend({
         treeNode: {},
         //Template is in views/index.php
-        template: _.template($('#info-pane-template').html()),
+        template: _.template($('#info-pane-template').length ? $('#info-pane-template').html() : ''),
         events: {
             "click .btn-save": "onSave",
             "click .btn-delete": "onDelete",
@@ -35,7 +35,9 @@
 
             this.treeNode = treeNode;
             this.empty();
-            this.$content.html(this.template(this.model.attributes));
+            var editUrl = this.treeNode.data.getApi().model.get('url') + '/wp-admin/post.php?post=' + this.model.get('id') + '&action=edit';
+            var attributes = _.extend( { editUrl: editUrl }, this.model.attributes );
+            this.$content.html(this.template( attributes ) );
         },
         onModelChange: function (model) {
             this.$el.find('input.title').eq(0).val(model.get('title').rendered);

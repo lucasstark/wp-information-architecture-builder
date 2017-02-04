@@ -112,6 +112,10 @@
 	width:100%;
 }
 
+.info-container .editing-action {
+	display:inline;
+}
+
 #site-info-container {
 	margin-top:25px;
 	overflow: hidden;
@@ -200,3 +204,20 @@
 
 
 .jstree-default-large .jstree-icon{width:32px;height:32px;line-height:32px}
+
+
+
+/** For the IFRAME Browser **/
+
+.wp-iab-drop-target { width: 1024px; height: 320px;background:#000; }
+
+
+[draggable] {
+	-moz-user-select: none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	user-select: none;
+	/* Required to make elements draggable in old WebKit */
+	-khtml-user-drag: element;
+	-webkit-user-drag: element;
+}

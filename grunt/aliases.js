@@ -10,7 +10,8 @@ module.exports = {
 		'watch'
 	],
     'scripts': [
-        'concat',
+        'concat:modal',
+        'concat:main',
         'notify:scripts'
     ],
     'build': [

@@ -2,6 +2,7 @@
     //Main Application Screen
     $.jstree.defaults.core.themes.variant = "large";
     $.jstree.defaults.core.themes.stripes = true;
+    $.jstree.defaults.dnd.use_html5 = false;
 
     wp.jstree.views.ApplicationView = Backbone.View.extend({
         initialize: function () {
@@ -67,7 +68,7 @@
                     }
                 },
                 "plugins": [
-                    "types", "contextmenu", "dnd",
+                    "types", "contextmenu", "dnd"
                 ],
                 'dnd': {
                     //Disallow dragging of sites since there isn't an order to the sites in a multisite.
@@ -154,9 +155,9 @@
                                         promises.push(model.destroy());
                                     }
 
-                                    $.when.apply($, promises).then(function(){
+                                    $.when.apply($, promises).then(function () {
                                         return nodeToDelete.data.model.destroy();
-                                    }).then(function(){
+                                    }).then(function () {
                                         inst.delete_node(nodeToDelete);
                                         wp.jstree.ui.setLoading(false, domNodeToDelete);
                                         wp.jstree.ui.setLoading(false, parentDomNode);
@@ -164,6 +165,16 @@
 
                                 });
                             }
+
+                            tmp.import = {};
+                            tmp.import.label = wp_iab_params.labels.build_children;
+                            tmp.import.separator_after = false;
+                            tmp.import.separator_before = false;
+                            tmp.import.action = function (data) {
+                                if (aut0poietic.backbone_modal.__instance === undefined) {
+                                    aut0poietic.backbone_modal.__instance = new aut0poietic.backbone_modal.Application();
+                                }
+                            };
                         }
 
                         return tmp;
@@ -230,6 +241,8 @@
                         treeNodeData.instance.select_node(treeNodeData.node)
 
                     } else {
+                        var parentNode =  treeNodeData.instance.get_node(treeNodeData.parent);
+                        treeNodeData.instance.set_icon(parentNode, 'jstree-icon jstree-themeicon glyph-icon fa fa-folder font-new jstree-themeicon-custom');
                         treeNodeData.instance.deselect_all();
                         treeNodeData.instance.select_node(treeNodeData.node)
                     }
@@ -374,42 +387,38 @@
                 .on('delete_node.jstree', function (e, treeNodeData) {
 
 
-
-
-
-
-
                 })
                 .on('ready.jstree', function (e) {
                     wp.jstree.ui.setLoading(false);
                     view.$el.find('.network_browser_tree_container').unblock();
-                });
+                })
         }
     });
 
 
     //Initialize the tree and hook up all the actions.
-
-
     $(document).ready(function () {
 
-
-        function setHeight() {
-            windowHeight = $(window).innerHeight();
-            $('.network_browser_tree_container').css('height', windowHeight - 200);
-            $('.wrap').css('height', windowHeight);
-        };
-        setHeight();
-
-        $(window).resize(function () {
+        if ($('#application_root').length) {
+            function setHeight() {
+                windowHeight = $(window).innerHeight();
+                $('.network_browser_tree_container').css('height', windowHeight - 200);
+                $('.wrap').css('height', windowHeight);
+            };
             setHeight();
-        });
 
-        var application = new wp.jstree.views.ApplicationView({
-            el: '#application_root'
-        });
+            $(window).resize(function () {
+                setHeight();
+            });
 
-        application.render();
+            var application = new wp.jstree.views.ApplicationView({
+                el: '#application_root'
+            });
+
+            application.render();
+        }
+
+
     });
 
 }(jQuery, wp));

@@ -10,6 +10,8 @@
         this.networkApi = networkApi;
         this.model = model;
         this.collection = null;
+        this.attachments = null;
+
         this.collections = {};
 
         model.on('change:url', this._onModelChanged, this);
@@ -56,6 +58,7 @@
 
             //Create just the Pages endpoint and return the root pages as the initial nodes.
             self.collection = new self.collections.Pages();
+            self.attachments = new self.collections.Media();
 
             self._fetch(0).done(function (results) {
                 deferred.resolveWith(self, [results]);
@@ -120,6 +123,8 @@
             migration_content_status: '',
             migration_status: 'new',
         }, modelData);
+
+        console.log(data);
 
         data.parent = parent;
 

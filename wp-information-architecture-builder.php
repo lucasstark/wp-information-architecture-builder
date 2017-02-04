@@ -79,13 +79,14 @@ class WP_IAB_Main {
 
 	public function on_rest_api_init() {
 		require $this->dir . '/inc/class-wp-iab-rest-endpoint-extensions.php';
+		require $this->dir . '/inc/class-wp-iab-rest-media-endpoint-extensions.php';
 		require $this->dir . '/inc/class-wp-iab-rest-sites-controller.php';
+
 
 		//Boot up controllers.
 		WP_IAB_Rest_Endpoint_Extensions::register();
+		WP_IAB_Rest_Media_Endpoint_Extensions::register();
 		WP_REST_Site_Controller::register();
-
-
 	}
 
 	/**
@@ -94,16 +95,24 @@ class WP_IAB_Main {
 	public function on_admin_enqueue_scripts() {
 		//Enqueue our scripts and stylesheets, and localize some labels for use in scripts.
 
+
 		wp_enqueue_script( 'wpiab-jquery-flot', $this->plugin_url() . '/assets/js/lib/flot/jquery.flot.js', array( 'jquery' ), $this->assets_version, true );
 		wp_enqueue_script( 'wpiab-jquery-flot-pie', $this->plugin_url() . '/assets/js/lib/flot/jquery.flot.pie.js', array( 'jquery' ), $this->assets_version, true );
-
 		wp_enqueue_script( 'wpiab-blockui', $this->plugin_url() . '/assets/js/lib/jquery.blockui.js', array( 'jquery' ), $this->assets_version, true );
-
-
 		wp_enqueue_script( 'wpiab-jstree', $this->plugin_url() . '/assets/js/lib/jstree.js', array( 'jquery' ), $this->assets_version, true );
 
 		//We enqueue our own version of the client api.  This custom version includes patches that are not in 4.7
-		wp_enqueue_script( 'wpiab-wp-api', $this->plugin_url() . '/assets/js/lib/wp-api.js', array( 'jquery', 'wp-api' ), $this->assets_version, true );
+		wp_enqueue_script( 'wpiab-wp-api', $this->plugin_url() . '/assets/js/lib/wp-api.js', array(
+			'jquery',
+			'wp-api'
+		), $this->assets_version, true );
+
+		wp_enqueue_script( 'backbone_modal', $this->plugin_url() . '/assets/js/modal.js', array(
+			'jquery',
+			'backbone',
+			'underscore',
+			'wp-util'
+		) );
 
 		wp_enqueue_script( 'wpiab-main', $this->plugin_url() . '/assets/js/main.js', array(
 			'jquery',
@@ -114,11 +123,6 @@ class WP_IAB_Main {
 			'wpiab-jquery-flot-pie'
 		), $this->assets_version, true );
 
-
-		wp_enqueue_style( 'wpiab-jstree', $this->plugin_url() . '/assets/css/themes/default/style.css', null, $this->assets_version );
-		wp_enqueue_style( 'wpiab-font-awesome', $this->plugin_url() . '/assets/css/font-awesome.min.css', null, $this->assets_version );
-		wp_enqueue_style( 'wpiab-main', $this->plugin_url() . '/assets/css/main.css', array( 'wpiab-font-awesome' ), $this->assets_version );
-
 		$network = get_network( get_current_network_id() );
 
 		$labels                               = new stdClass();
@@ -126,9 +130,11 @@ class WP_IAB_Main {
 		$labels->migration_status_in_progress = __( 'In Progress', 'wpiab' );
 		$labels->migration_status_in_review   = __( 'In Review', 'wpiab' );
 		$labels->migration_status_complete    = __( 'Complete', 'wpiab' );
-		$labels->newItem                     = __( 'New...', 'wpiab' );
+		$labels->newItem                      = __( 'New...', 'wpiab' );
 		$labels->new_site                     = __( 'New Site', 'wpiab' );
-		$labels->root_node_text = __( 'Sites', 'wpiab' );
+		$labels->build_children               = __( 'Add Pages', 'wpiab' );
+		$labels->root_node_text               = __( 'Sites', 'wpiab' );
+		$labels->edit                         = __( 'Edit', 'wpiab' );
 
 		$current_site_id = BLOG_ID_CURRENT_SITE;
 		settype( $current_site_id, 'integer' );
@@ -142,6 +148,17 @@ class WP_IAB_Main {
 
 		wp_localize_script( 'wpiab-main', 'wp_iab_params', $params );
 		$this->json_api_client_js();
+
+
+		wp_enqueue_style( 'wpiab-jstree', $this->plugin_url() . '/assets/css/themes/default/style.css', null, $this->assets_version );
+		wp_enqueue_style( 'wpiab-font-awesome', $this->plugin_url() . '/assets/css/font-awesome.min.css', null, $this->assets_version );
+		wp_enqueue_style( 'wpiab-main', $this->plugin_url() . '/assets/css/main.css', array( 'wpiab-font-awesome' ), $this->assets_version );
+		wp_enqueue_style( 'wpiab-modal', $this->plugin_url() . '/assets/css/modal.css', array(
+			'wpiab-font-awesome',
+			'wpiab-main'
+		), $this->assets_version );
+
+
 	}
 
 	private function json_api_client_js() {
@@ -219,6 +236,13 @@ class WP_IAB_Main {
 			$this,
 			'page_index'
 		), 'dashicons-admin-multisite' );
+
+		/*
+		add_submenu_page( 'wpiab-main', 'Drag and Drop', 'Drag and Drop', 'network_admin', 'wpiab-dnd', array(
+			$this,
+			'page_dnd'
+		) );
+		*/
 	}
 
 	/**
@@ -226,6 +250,10 @@ class WP_IAB_Main {
 	 */
 	public function page_index() {
 		$this->templates->get_template( 'dashboard.php' );
+	}
+
+	public function page_dnd() {
+		$this->templates->get_template( 'dnd.php' );
 	}
 
 }

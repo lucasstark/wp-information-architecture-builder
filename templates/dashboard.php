@@ -1,6 +1,8 @@
 <?php //TODO:  Clean up this markup as much as possible ?>
 <div class="wrap" id="application_root">
     <h1 class="page-title"><?php _e( 'Information Architecture Builder', 'wpiab' ); ?></h1>
+
+
     <div class="row">
         <div class="col-6">
             <div class="wpiab-outer-wrap">
@@ -69,5 +71,10 @@ wpiab()->templates->get_template('script-views/info-pane.php');
 <?php
 //The script template for the Site Information
 wpiab()->templates->get_template('script-views/site-info-pane.php');
+?>
+
+<?php
+//The script template for the Site Information
+wpiab()->templates->get_template('script-views/modal.php');
 ?>
 

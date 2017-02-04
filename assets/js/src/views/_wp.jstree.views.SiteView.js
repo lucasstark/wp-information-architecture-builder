@@ -2,7 +2,7 @@
     //Contains the chart for the site information.
     wp.jstree.views.SiteView = Backbone.View.extend({
         //Template is in views/index.php
-        template: _.template($('#site-info-pane-template').html()),
+        template: _.template($('#site-info-pane-template').length ? $('#site-info-pane-template').html() : ''),
         initialize: function () {
             _.bindAll(this, "render", 'addPage', 'removePage');
             this.$plot = this.$el.find('.site-info-plot').eq(0);

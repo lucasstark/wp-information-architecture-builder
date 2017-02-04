@@ -60,7 +60,7 @@ class WP_IAB_Rest_Endpoint_Extensions {
 
 	public function get_has_children( $object, $field_name, $request ) {
 		global $wpdb;
-		$has_children = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_parent = %d AND post_type = 'page' AND post_status = 'publish'", $object['id'] ) );
+		$has_children = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_parent = %d AND post_type = 'page' AND post_status != 'trash'", $object['id'] ) );
 
 		return !empty( $has_children );
 	}
