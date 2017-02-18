@@ -20,7 +20,18 @@
 
             _.bindAll(this, 'switchNode');
 
-            this.networkNode = new wp.jstree.NetworkNode(1);
+
+            if (wp_iab_params.is_multisite) {
+                this.rootNode = new wp.jstree.NetworkNode(1);
+            } else {
+                var siteModel = new Backbone.Model({
+                    id: wp_iab_params.root_site_id,
+                    title: wp_iab_params.labels.root_node_text,
+                    url: wp_iab_params.api_ur
+                });
+
+                this.rootNode = new wp.jstree.SiteNode(siteModel, null);
+            }
 
         },
         switchNode: function (treeNode) {
@@ -201,13 +212,13 @@
                         //This is the root node from jstree.
                         if (node.id === '#') {
 
-                            view.networkNode.fetch().done(function (result) {
+                            view.rootNode.fetch().done(function (result) {
                                 cb.call(treeInstance, result);
                             });
 
                         } else {
 
-                            //node.data is either an instance of wp.jstree.SiteNodeData, wp.jstree.EndPointData, wp.jstree.NodeData
+                            //node.data is either an instance of wp.jstree.SiteNodeData or wp.jstree.NodeData
                             node.data.fetch().done(function (results) {
                                 cb.call(treeInstance, results);
                             });
@@ -241,7 +252,7 @@
                         treeNodeData.instance.select_node(treeNodeData.node)
 
                     } else {
-                        var parentNode =  treeNodeData.instance.get_node(treeNodeData.parent);
+                        var parentNode = treeNodeData.instance.get_node(treeNodeData.parent);
                         treeNodeData.instance.set_icon(parentNode, 'jstree-icon jstree-themeicon glyph-icon fa fa-folder font-new jstree-themeicon-custom');
                         treeNodeData.instance.deselect_all();
                         treeNodeData.instance.select_node(treeNodeData.node)

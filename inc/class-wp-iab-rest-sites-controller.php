@@ -155,7 +155,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	 */
 	public function get_items( $request ) {
 
-		$items = get_sites( array(
+		$items = $this->get_sites( array(
 			'orderby' => 'path'
 		) );
 
@@ -198,7 +198,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			wp_delete_post( 1 );
 			wp_delete_comment( 1 );
 
-			$home_page_id = $this->create_page( __('home', 'wpiab'), '_migration_homepage_id', __('Home', 'wpiab') );
+			$home_page_id = $this->create_page( __( 'home', 'wpiab' ), '_migration_homepage_id', __( 'Home', 'wpiab' ) );
 			update_option( 'show_on_front', 'page' );
 			update_option( 'page_on_front', $home_page_id );
 		}
@@ -215,7 +215,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		}
 
 
-		$site = get_site( (int) $current_site_id );
+		$site = $this->get_site( (int) $current_site_id );
 
 		/**
 		 * Fires after a single site is created or updated via the REST API.
@@ -454,7 +454,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		if ( isset( $request['title'] ) && ! empty( $request['title'] ) ) {
 			$prepared_data->title = $request['title'];
 		} else {
-			$prepared_data->title = uniqid(__('New Site ', 'wpiab'));
+			$prepared_data->title = uniqid( __( 'New Site ', 'wpiab' ) );
 			//return new WP_Error( 'rest_invalid_title', __( 'Invalid title.' ), array( 'status' => 400 ) );
 		}
 
@@ -672,7 +672,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 	protected function add_site_migration_details( $site ) {
 		global $wpdb;
-		switch_to_blog($site->id);
+		switch_to_blog( $site->id );
 
 		$total_pages = $wpdb->get_var( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_type = 'page' AND post_status != 'trash'" );
 		$stats       = $wpdb->get_results( "SELECT meta_value, COUNT(ID) as value FROM $wpdb->posts p INNER JOIN $wpdb->postmeta pm on p.ID = pm.post_id WHERE post_type = 'page' and post_status != 'trash' AND meta_key = 'migration_status' GROUP BY meta_value", OBJECT_K );
@@ -684,13 +684,63 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		$site->migration_status_in_review   = isset( $stats['in_review'] ) ? $stats['in_review']->value : 0;
 		$site->migration_status_complete    = isset( $stats['complete'] ) ? $stats['complete']->value : 0;
 
-		if ($site->migration_status_new + $site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete != $total_pages){
+		if ( $site->migration_status_new + $site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete != $total_pages ) {
 			//Must be some pages missing meta data.
-			$site->migration_status_new = ($total_pages - ($site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete));
+			$site->migration_status_new = ( $total_pages - ( $site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete ) );
 		}
 
 		restore_current_blog();
+
 		return $site;
+	}
+
+
+	protected function get_sites( $args ) {
+		if ( is_multisite() ) {
+			return get_sites( $args );
+		}
+	}
+
+
+	/**
+	 * Retrieves site data given a site ID or site object.
+	 *
+	 * Site data will be cached and returned after being passed through a filter.
+	 * If the provided site is empty, the current site global will be used.
+	 *
+	 * @since 4.6.0
+	 *
+	 * @param WP_Site|int|null $site Optional. Site to retrieve. Default is the current site.
+	 *
+	 * @return WP_Site|null The site object or null if not found.
+	 */
+	protected function get_site( $site = null ) {
+		if ( empty( $site ) ) {
+			$site = get_current_blog_id();
+		}
+
+		if ( $site instanceof WP_Site ) {
+			$_site = $site;
+		} elseif ( is_object( $site ) ) {
+			$_site = new WP_Site( $site );
+		} else {
+			$_site = WP_Site::get_instance( $site );
+		}
+
+		if ( ! $_site ) {
+			return null;
+		}
+
+		/**
+		 * Fires after a site is retrieved.
+		 *
+		 * @since 4.6.0
+		 *
+		 * @param WP_Site $_site Site data.
+		 */
+		$_site = apply_filters( 'get_site', $_site );
+
+		return $_site;
 	}
 
 }

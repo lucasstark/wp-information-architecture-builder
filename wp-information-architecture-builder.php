@@ -123,7 +123,6 @@ class WP_IAB_Main {
 			'wpiab-jquery-flot-pie'
 		), $this->assets_version, true );
 
-		$network = get_network( get_current_network_id() );
 
 		$labels                               = new stdClass();
 		$labels->migration_status_new         = __( 'New', 'wpiab' );
@@ -136,14 +135,22 @@ class WP_IAB_Main {
 		$labels->root_node_text               = __( 'Sites', 'wpiab' );
 		$labels->edit                         = __( 'Edit', 'wpiab' );
 
-		$current_site_id = BLOG_ID_CURRENT_SITE;
+		$current_site_id = defined( BLOG_ID_CURRENT_SITE ) ? BLOG_ID_CURRENT_SITE : 0;
+		if ( $current_site_id ) {
+			$network = get_network( get_current_network_id() );
+		} else {
+			$network         = new stdClass();
+			$network->domain = '';
+		}
+
 		settype( $current_site_id, 'integer' );
 		$params = array(
 			'root_site_id' => $current_site_id,
 			'api_url'      => esc_url_raw( rest_url() ),
 			'nonce'        => wp_create_nonce( 'wp_rest' ),
 			'domain'       => $network->domain,
-			'labels'       => $labels
+			'labels'       => $labels,
+			'is_multisite' => is_multisite()
 		);
 
 		wp_localize_script( 'wpiab-main', 'wp_iab_params', $params );
