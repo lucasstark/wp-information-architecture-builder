@@ -21,17 +21,8 @@
             _.bindAll(this, 'switchNode');
 
 
-            if (wp_iab_params.is_multisite) {
-                this.rootNode = new wp.jstree.NetworkNode(1);
-            } else {
-                var siteModel = new Backbone.Model({
-                    id: wp_iab_params.root_site_id,
-                    title: wp_iab_params.labels.root_node_text,
-                    url: wp_iab_params.api_ur
-                });
+            this.rootNode = new wp.jstree.NetworkNode(1);
 
-                this.rootNode = new wp.jstree.SiteNode(siteModel, null);
-            }
 
         },
         switchNode: function (treeNode) {

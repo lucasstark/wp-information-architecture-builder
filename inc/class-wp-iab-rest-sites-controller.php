@@ -672,7 +672,10 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 
 	protected function add_site_migration_details( $site ) {
 		global $wpdb;
-		switch_to_blog( $site->id );
+
+		if ( is_multisite() ) {
+			switch_to_blog( $site->id );
+		}
 
 		$total_pages = $wpdb->get_var( "SELECT COUNT(ID) FROM $wpdb->posts WHERE post_type = 'page' AND post_status != 'trash'" );
 		$stats       = $wpdb->get_results( "SELECT meta_value, COUNT(ID) as value FROM $wpdb->posts p INNER JOIN $wpdb->postmeta pm on p.ID = pm.post_id WHERE post_type = 'page' and post_status != 'trash' AND meta_key = 'migration_status' GROUP BY meta_value", OBJECT_K );
@@ -689,7 +692,9 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			$site->migration_status_new = ( $total_pages - ( $site->migration_status_in_progress + $site->migration_status_in_review + $site->migration_status_complete ) );
 		}
 
-		restore_current_blog();
+		if ( is_multisite() ) {
+			restore_current_blog();
+		}
 
 		return $site;
 	}
@@ -698,7 +703,17 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	protected function get_sites( $args ) {
 		if ( is_multisite() ) {
 			return get_sites( $args );
+		} else {
+			$_site = $this->get_site();
+
+			if ( $_site ) {
+				return array(
+					$_site
+				);
+			}
 		}
+
+		return false;
 	}
 
 
@@ -715,16 +730,31 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	 * @return WP_Site|null The site object or null if not found.
 	 */
 	protected function get_site( $site = null ) {
-		if ( empty( $site ) ) {
-			$site = get_current_blog_id();
-		}
 
-		if ( $site instanceof WP_Site ) {
-			$_site = $site;
-		} elseif ( is_object( $site ) ) {
-			$_site = new WP_Site( $site );
+
+		if ( is_multisite() ) {
+			if ( empty( $site ) ) {
+				$site = get_current_blog_id();
+			}
+
+			$_site = get_site( $site );
 		} else {
-			$_site = WP_Site::get_instance( $site );
+
+			$_site               = new stdClass();
+			$_site->blog_id      = 0;
+			$_site->domain       = '';
+			$_site->path         = '/';
+			$_site->site_id      = 0;
+			$_site->registered   = '0000-00-00 00:00:00';
+			$_site->last_updated = '0000-00-00 00:00:00';
+			$_site->public       = '1';
+			$_site->mature       = '0';
+			$_site->spam         = '0';
+			$_site->deleted      = '0';
+			$_site->lang_id      = '0';
+			$_site->network_id   = '1';
+			$_site->blogname     = __('Pages', 'wpiab');
+			$_site->siteurl      = get_site_url();
 		}
 
 		if ( ! $_site ) {

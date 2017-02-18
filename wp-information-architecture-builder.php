@@ -66,7 +66,13 @@ class WP_IAB_Main {
 
 		add_action( 'admin_init', array( $this, 'on_admin_init' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'on_admin_enqueue_scripts' ) );
-		add_action( 'network_admin_menu', array( $this, 'on_admin_menu' ) );
+
+		if ( is_multisite() ) {
+			add_action( 'network_admin_menu', array( $this, 'on_admin_menu' ) );
+		} else {
+			add_action( 'admin_menu', array( $this, 'on_admin_menu' ) );
+		}
+
 
 		add_action( 'rest_api_init', array( $this, 'on_rest_api_init' ), 0 );
 
@@ -132,10 +138,11 @@ class WP_IAB_Main {
 		$labels->newItem                      = __( 'New...', 'wpiab' );
 		$labels->new_site                     = __( 'New Site', 'wpiab' );
 		$labels->build_children               = __( 'Add Pages', 'wpiab' );
-		$labels->root_node_text               = __( 'Sites', 'wpiab' );
+		$labels->root_node_text               = is_multisite() ? __( 'Sites', 'wpiab' ) : get_bloginfo('blogname');
 		$labels->edit                         = __( 'Edit', 'wpiab' );
 
-		$current_site_id = defined( BLOG_ID_CURRENT_SITE ) ? BLOG_ID_CURRENT_SITE : 0;
+
+		$current_site_id = defined( 'BLOG_ID_CURRENT_SITE' ) ? BLOG_ID_CURRENT_SITE : 0;
 		if ( $current_site_id ) {
 			$network = get_network( get_current_network_id() );
 		} else {
@@ -239,7 +246,9 @@ class WP_IAB_Main {
 	 * Add our menu to the Network Admin screen.
 	 */
 	public function on_admin_menu() {
-		add_menu_page( __( 'Information Architecture' ), __( 'Architecture' ), 'network_admin', 'wpiab-main', array(
+		$permission = is_multisite() ? 'network_admin' : 'administrator';
+
+		add_menu_page( __( 'Information Architecture' ), __( 'Architecture' ), $permission, 'wpiab-main', array(
 			$this,
 			'page_index'
 		), 'dashicons-admin-multisite' );
