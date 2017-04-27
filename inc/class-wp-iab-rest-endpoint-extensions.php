@@ -38,6 +38,12 @@ class WP_IAB_Rest_Endpoint_Extensions {
 			'schema'          => null,
 		) );
 
+		register_rest_field( 'page', 'migrate_source_id', array(
+			'get_callback'    => array( $this, 'get_migrate_source_id' ),
+			'update_callback' => array( $this, 'update_migrate_source_id' ),
+			'schema'          => null,
+		) );
+
 		register_rest_field( 'page', 'migration_old_url', array(
 			'get_callback'    => array( $this, 'get_migration_old_url' ),
 			'update_callback' => array( $this, 'update_migration_old_url' ),
@@ -82,7 +88,7 @@ class WP_IAB_Rest_Endpoint_Extensions {
 	}
 
 	public function get_migration_old_url( $object, $field_name, $request ) {
-		return esc_textarea( strip_tags( get_post_meta( $object['id'], $field_name, true ) ) );
+		return esc_attr( html_entity_decode( strip_tags( get_post_meta( $object['id'], '_migrate_source_url', true ) ) ) );
 	}
 
 	public function update_migration_old_url( $value, $object, $field_name ) {
@@ -90,7 +96,19 @@ class WP_IAB_Rest_Endpoint_Extensions {
 			return;
 		}
 
-		return update_post_meta( $object->ID, $field_name, strip_tags( $value ) );
+		return update_post_meta( $object->ID, '_migrate_source_url', html_entity_decode( $value ) );
+	}
+
+	public function get_migrate_source_id( $object, $field_name, $request ) {
+		return esc_attr( strip_tags( get_post_meta( $object['id'], '_migrate_source_id', true ) ) );
+	}
+
+	public function update_migrate_source_id( $value, $object, $field_name ) {
+		if ( ! $value || ! is_string( $value ) ) {
+			return;
+		}
+
+		return update_post_meta( $object->ID, '_migrate_source_id', strip_tags( $value ) );
 	}
 
 	public function get_migration_status( $object, $field_name, $request ) {

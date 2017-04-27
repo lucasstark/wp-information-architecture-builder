@@ -10,20 +10,25 @@
 				       value="<%= title.rendered %>"/>
 			</p>
 			<p>
-                <span class="post-slug"><strong><?php _e( 'Permalink: ', 'wpiab' ); ?></strong><span
-		                id="post-slug-value"><%= link %></span></span>
+                <span class="post-slug"><strong><?php _e( 'Permalink: ', 'wpiab' ); ?></strong><a href="<%= link %>" id="post-slug-value"><%= link %></a></span>
 			</p>
-			<p>
-				<label for="migration-notes"><?php _e( 'Migration Notes', 'wpiab' ); ?></label>
-				<textarea class="wpiab-full-width" id="migration-notes" name="migration-notes" rows="4"><%- migration_notes %></textarea>
-			</p>
+
+
+            <p>
+                <label for="migration-source-id"><?php _e( 'Previous ID', 'wpiab' ); ?></label>
+                <input class="" type="number" width="10%" name="migrate-source-id" id="migrate-source-id" value="<%= migrate_source_id %>"/>
+            </p>
+
 			<p>
 				<label for="migration-old-url"><?php _e( 'Previous URL', 'wpiab' ); ?></label>
 				<input class="" type="text" width="100%" name="migration-old-url" id="migration-old-url"
 				       value="<%= migration_old_url %>"/>
 			</p>
+            <p>
+                <span class="post-slug"><strong><?php _e( 'Existing URL: ', 'wpiab' ); ?></strong><a target="_blank" href="<%= migration_old_url %>" id="migration-old-url-link"><%= migration_old_url %></a></span>
+            </p>
 			<p>
-				<label for="migration-status"><?php _e( 'Migration Status', 'wpiab' ); ?></label>
+				<label for="migration-status"><?php _e( 'Status', 'wpiab' ); ?></label>
 				<select name="migration-status" id="migration-status">
 					<option
 					<% if(!migration_status || migration_status === 'new') { %> selected="selected" <% } %>
@@ -39,6 +44,10 @@
 					value="complete"><?php _e( 'Complete', 'wpiab' ); ?></option>
 				</select>
 			</p>
+            <p>
+                <label for="migration-notes"><?php _e( 'Notes', 'wpiab' ); ?></label>
+                <textarea class="wpiab-full-width" id="migration-notes" name="migration-notes" rows="4"><%- migration_notes %></textarea>
+            </p>
 		</div>
 	</form>
 

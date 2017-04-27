@@ -111,6 +111,20 @@
                                 });
                             };
 
+                            tmp.open_all = {}
+                            tmp.open_all.label = "Open All";
+                            tmp.open_all.separator_after = false;
+                            tmp.open_all.separator_before = true;
+                            tmp.open_all.action = function (data) {
+
+                                var treeInstance = $.jstree.reference(data.reference);
+                                var currentNode = treeInstance.get_node(data.reference);
+                                treeInstance.open_all(currentNode);
+
+
+
+                            };
+
                             //Remove other actions since create site is the only allowed operation.
                             delete tmp.ccp;
                             delete tmp.rename;
@@ -168,14 +182,45 @@
                                 });
                             }
 
-                            tmp.import = {};
-                            tmp.import.label = wp_iab_params.labels.build_children;
-                            tmp.import.separator_after = false;
-                            tmp.import.separator_before = false;
-                            tmp.import.action = function (data) {
-                                if (aut0poietic.backbone_modal.__instance === undefined) {
-                                    aut0poietic.backbone_modal.__instance = new aut0poietic.backbone_modal.Application();
-                                }
+                            /*
+                             tmp.import = {};
+                             tmp.import.label = wp_iab_params.labels.build_children;
+                             tmp.import.separator_after = false;
+                             tmp.import.separator_before = false;
+                             tmp.import.action = function (data) {
+                             if (aut0poietic.backbone_modal.__instance === undefined) {
+                             aut0poietic.backbone_modal.__instance = new aut0poietic.backbone_modal.Application();
+                             }
+                             };
+                             */
+
+                            tmp.convert = {}
+                            tmp.convert.label = "Convert To Site";
+                            tmp.convert.separator_after = false;
+                            tmp.convert.separator_before = true;
+                            tmp.convert.action = function (data) {
+
+                                var treeInstance = $.jstree.reference(data.reference);
+                                var currentNode = treeInstance.get_node(data.reference);
+
+                                var networkNode = treeInstance.get_node(data.reference);
+                                var networkApi = currentNode.data.getApi().getNetworkApi();
+
+                                wp.jstree.ui.setLoading(true);
+                                networkApi.treeCreateNode(currentNode.data.model.get('title').rendered).done(function (newTreeNode) {
+                                    treeInstance.create_node('root', newTreeNode,
+                                        'last', function (new_node) {
+                                            new_node.data.getApi().fetch(0).done(function () {
+                                                new_node.data.getApi().importTreeNodeAsRoot(treeInstance, currentNode, 0).done(function () {
+                                                    console.log("DONE");
+
+                                                    treeInstance.delete_node([ currentNode ]);
+                                                    wp.jstree.ui.setLoading(false);
+                                                });
+                                            });
+                                        });
+                                });
+
                             };
                         }
 
@@ -304,6 +349,7 @@
                     //if the parent is site, the wp parent id needs to remian 0
                     if (parentNode.type !== 'site') {
                         parent_wp_id = parentNode.data.model.get('id');
+
                         //Reset the icon to a folder, since we know for sure that it has children now.
                         treeNodeData.instance.set_icon(parent, 'glyph-icon fa fa-folder font-blue');
                     }
@@ -311,7 +357,8 @@
                     if (parentNode.data.getSiteId() !== currentNode.data.getSiteId()) {
                         //Moving items between sites.
 
-                        parentNode.data.getApi().importTreeNode(treeNodeData.instance, currentNode, parent_wp_id).then(function () {
+                        parentNode.data.getApi().importTreeNode(treeNodeData.instance, currentNode, parent_wp_id).then(function (importedTreeNode) {
+                            var parentDomNode = treeNodeData.instance.get_node(importedTreeNode.parent, true);
                             parentDomNode.removeClass('jstree-loading').attr('aria-busy', false);
                         });
 
@@ -407,10 +454,10 @@
                 $('.network_browser_tree_container').css('height', windowHeight - 200);
                 $('.wrap').css('height', windowHeight);
             };
-            setHeight();
+            //setHeight();
 
             $(window).resize(function () {
-                setHeight();
+                //setHeight();
             });
 
             var application = new wp.jstree.views.ApplicationView({

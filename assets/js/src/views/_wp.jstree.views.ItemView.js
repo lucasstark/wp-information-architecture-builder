@@ -84,6 +84,12 @@
                 this.model.set('migration_old_url', migration_old_url);
             }
 
+            var migrate_source_id = this.$el.find('#migrate-source-id').eq(0).val();
+            if (this.model.get('migrate_source_id') !== migrate_source_id) {
+                updateRequired = true;
+                this.model.set('migrate_source_id', migrate_source_id);
+            }
+
             //TODO:  Find a better way to keep this state in sync.
             var migration_status = this.$el.find('#migration-status').eq(0).val();
             if (migration_status_previous !== migration_status) {

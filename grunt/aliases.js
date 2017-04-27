@@ -1,6 +1,5 @@
 module.exports = {
     'default': [
-        'styles',
         'scripts',
         'makepot',
         'notify:default'
