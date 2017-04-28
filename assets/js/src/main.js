@@ -454,10 +454,10 @@
                 $('.network_browser_tree_container').css('height', windowHeight - 200);
                 $('.wrap').css('height', windowHeight);
             };
-            //setHeight();
+            setHeight();
 
             $(window).resize(function () {
-                //setHeight();
+                setHeight();
             });
 
             var application = new wp.jstree.views.ApplicationView({
